@@ -1,5 +1,6 @@
 package com.gbkhealthcare.patient;
 
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -7,11 +8,15 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,6 +27,14 @@ public class ClinicalReportPdfService {
 
     private final PDFont boldFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    /**
+     * Generates an unencrypted clinical report PDF.
+     *
+     * Patient demographics are read from Patient.
+     * Clinical details are read from the selected PatientVisit.
+     */
     public byte[] generateClinicalReport(
             Patient patient,
             PatientVisit visit) {
@@ -51,6 +64,77 @@ public class ClinicalReportPdfService {
                     "Unable to generate the clinical report PDF.",
                     exception);
         }
+    }
+
+    /**
+     * Generates a password-protected clinical report PDF.
+     *
+     * The user password is required to open the PDF.
+     * The separate owner password is generated internally and is never
+     * returned or included in the patient email.
+     */
+    public byte[] generateEncryptedClinicalReport(
+            Patient patient,
+            PatientVisit visit,
+            String userPassword) {
+
+        if (userPassword == null || userPassword.length() < 12) {
+            throw new IllegalArgumentException(
+                    "The PDF password must contain at least 12 characters.");
+        }
+
+        byte[] originalPdf = generateClinicalReport(patient, visit);
+
+        try (
+                PDDocument document = Loader.loadPDF(originalPdf);
+                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            AccessPermission permissions = new AccessPermission();
+
+            // Restrict editing and copying-related operations.
+            // PDF reader implementations may enforce permissions differently.
+            permissions.setCanModify(false);
+            permissions.setCanModifyAnnotations(false);
+            permissions.setCanFillInForm(false);
+            permissions.setCanAssembleDocument(false);
+            permissions.setCanExtractContent(false);
+
+            // Keep printing enabled for the patient.
+            permissions.setCanPrint(true);
+            permissions.setCanPrintFaithful(true);
+
+            StandardProtectionPolicy policy = new StandardProtectionPolicy(
+                    generateOwnerPassword(),
+                    userPassword,
+                    permissions);
+
+            // Use 256-bit PDF encryption.
+            policy.setEncryptionKeyLength(256);
+
+            document.protect(policy);
+            document.save(output);
+
+            return output.toByteArray();
+
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "Unable to encrypt the clinical report PDF.",
+                    exception);
+        }
+    }
+
+    /**
+     * Creates a random owner password for PDF encryption.
+     *
+     * This password must not be sent to the patient.
+     */
+    private String generateOwnerPassword() {
+
+        byte[] randomBytes = new byte[32];
+        secureRandom.nextBytes(randomBytes);
+
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(randomBytes);
     }
 
     private void validatePatientAndVisit(
@@ -92,9 +176,10 @@ public class ClinicalReportPdfService {
         writer.addField("Email", patient.getEmail());
         writer.addField("Visit Number", visit.getVisitNumber());
         writer.addField("Visit Date", visit.getVisitDate());
-        writer.addField("Doctor", firstNonBlank(
-                visit.getDoctor(),
-                patient.getDoctor()));
+
+        writer.addField(
+                "Doctor",
+                firstNonBlank(visit.getDoctor(), patient.getDoctor()));
     }
 
     private void addVitals(
@@ -192,6 +277,7 @@ public class ClinicalReportPdfService {
     }
 
     private String firstNonBlank(String first, String second) {
+
         if (first != null && !first.isBlank()) {
             return first;
         }
@@ -199,6 +285,9 @@ public class ClinicalReportPdfService {
         return second;
     }
 
+    /**
+     * Writes a formatted, multi-page clinical PDF.
+     */
     private final class ReportWriter implements AutoCloseable {
 
         private static final float MARGIN = 48;
@@ -231,17 +320,18 @@ public class ClinicalReportPdfService {
             drawText("GBK HealthCare", boldFont, 18, yPosition);
             yPosition -= 23;
 
-            drawText("PATIENT CLINICAL REPORT", boldFont, 12, yPosition);
-            yPosition -= 18;
-
-            contentStream.moveTo(
-                    MARGIN,
+            drawText(
+                    "PATIENT CLINICAL REPORT",
+                    boldFont,
+                    12,
                     yPosition);
 
+            yPosition -= 18;
+
+            contentStream.moveTo(MARGIN, yPosition);
             contentStream.lineTo(
                     page.getMediaBox().getWidth() - MARGIN,
                     yPosition);
-
             contentStream.stroke();
 
             yPosition -= 18;
@@ -250,7 +340,6 @@ public class ClinicalReportPdfService {
         private void addSection(String title) throws IOException {
 
             ensureSpace(30);
-
             yPosition -= 3;
 
             writeLine(title, boldFont, 12, 17);
@@ -332,7 +421,6 @@ public class ClinicalReportPdfService {
                 float maxWidth) throws IOException {
 
             List<String> lines = new ArrayList<>();
-
             StringBuilder currentLine = new StringBuilder();
 
             String[] words = text.split("\\s+");
@@ -374,6 +462,10 @@ public class ClinicalReportPdfService {
             return lines;
         }
 
+        /**
+         * PDFBox's standard Helvetica font supports a limited character set.
+         * Unsupported characters are replaced with '?' in this initial version.
+         */
         private String toSupportedText(String text) {
 
             if (text == null) {
