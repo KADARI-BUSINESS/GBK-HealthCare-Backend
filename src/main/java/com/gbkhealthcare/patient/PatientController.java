@@ -1,44 +1,96 @@
 package com.gbkhealthcare.patient;
 
+import com.gbkhealthcare.auth.Doctor;
+import com.gbkhealthcare.auth.DoctorRepository;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDate;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/patients")
 public class PatientController {
-    private final PatientService patientService;
 
-    public PatientController(PatientService patientService) {
+    private final PatientService patientService;
+    private final DoctorRepository doctorRepository;
+
+    public PatientController(
+            PatientService patientService,
+            DoctorRepository doctorRepository) {
         this.patientService = patientService;
+        this.doctorRepository = doctorRepository;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Patient create(@Valid @RequestBody PatientRequest request) {
+    public Patient create(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody PatientRequest request) {
+
+        Doctor doctor = doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
+
         Patient patient = request.toPatient();
+
+        // Use the doctor identified by the verified JWT.
+        // Do not trust the doctor name submitted by the frontend.
+        patient.setDoctorAccount(doctor);
+        patient.setDoctor(doctor.getFullName());
+
         return patientService.create(patient);
     }
 
     @GetMapping
-    public List<Patient> findAll() {
-        return patientService.findAll();
+    public List<Patient> findAll(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Doctor doctor = doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
+
+        return patientService.findAllByDoctorAccountId(doctor.getId());
     }
 
     @GetMapping("/{id}")
-    public Patient findById(@PathVariable Long id) {
+    public Patient findById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Doctor doctor = doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
+
         try {
-            return patientService.findById(id);
+            return patientService.findByIdForDoctor(
+                    id,
+                    doctor.getId());
         } catch (PatientNotFoundException exception) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, exception.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Patient not found.");
         }
     }
 
     public static class PatientRequest {
+
         @NotBlank
         @Size(max = 120)
         public String fullName;
@@ -97,6 +149,7 @@ public class PatientController {
 
         Patient toPatient() {
             Patient patient = new Patient();
+
             patient.setFullName(fullName.trim());
             patient.setAge(age);
             patient.setGender(gender);
@@ -116,11 +169,14 @@ public class PatientController {
             patient.setAbdomenExamination(blankToNull(abdomenExamination));
             patient.setRectalExamination(blankToNull(rectalExamination));
             patient.setDoctor(doctor.trim());
+
             return patient;
         }
 
         private String blankToNull(String value) {
-            return value == null || value.isBlank() ? null : value.trim();
+            return value == null || value.isBlank()
+                    ? null
+                    : value.trim();
         }
     }
 }

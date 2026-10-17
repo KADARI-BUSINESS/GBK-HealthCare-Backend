@@ -1,7 +1,7 @@
 package com.gbkhealthcare.patient;
 
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -205,6 +205,60 @@ public class PatientReportDeliveryService {
         } catch (RuntimeException exception) {
             return markFailed(delivery, "EMAIL_PREPARATION_FAILED");
         }
+    }
+
+    public DeliveryResult requestDeliveryForDoctor(
+            Long patientId,
+            Long visitId,
+            boolean consentGiven,
+            Long doctorAccountId) {
+
+        verifyDoctorOwnsPatient(patientId, doctorAccountId);
+
+        return requestDelivery(patientId, visitId, consentGiven);
+    }
+
+    public DeliveryResult sendPendingReportForDoctor(
+            Long deliveryId,
+            String pdfPassword,
+            Long doctorAccountId) {
+
+        PatientReportDelivery delivery = deliveryRepository
+                .findById(deliveryId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Report delivery not found."));
+
+        Long patientId = delivery.getPatient().getId();
+
+        verifyDoctorOwnsPatient(patientId, doctorAccountId);
+
+        return sendPendingReport(deliveryId, pdfPassword);
+    }
+
+    @Transactional(readOnly = true)
+    public DeliveryResult getStatusForDoctor(
+            Long deliveryId,
+            Long doctorAccountId) {
+
+        PatientReportDelivery delivery = deliveryRepository
+                .findById(deliveryId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Report delivery not found."));
+
+        Long patientId = delivery.getPatient().getId();
+
+        verifyDoctorOwnsPatient(patientId, doctorAccountId);
+
+        return DeliveryResult.from(delivery);
+    }
+
+    private void verifyDoctorOwnsPatient(
+            Long patientId,
+            Long doctorAccountId) {
+
+        patientRepository
+                .findByIdAndDoctorAccount_Id(patientId, doctorAccountId)
+                .orElseThrow(() -> new PatientNotFoundException(patientId));
     }
 
     private DeliveryResult markFailed(

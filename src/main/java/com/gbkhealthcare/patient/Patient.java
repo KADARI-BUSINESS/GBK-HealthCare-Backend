@@ -1,5 +1,7 @@
 package com.gbkhealthcare.patient;
 
+import com.gbkhealthcare.auth.Doctor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -57,66 +59,179 @@ public class Patient {
 
     @Column(nullable = false, length = 100)
     private String doctor;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_account_id")
+    @JsonIgnore
+    private Doctor doctorAccount;
 
-    public Patient() {}
+    public Patient() {
+    }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public Integer getAge() { return age; }
-    public void setAge(Integer age) { this.age = age; }
+    public String getFullName() {
+        return fullName;
+    }
 
-    public String getGender() { return gender; }
-    public void setGender(String gender) { this.gender = gender; }
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
 
-    public LocalDate getVisitDate() { return visitDate; }
-    public void setVisitDate(LocalDate visitDate) { this.visitDate = visitDate; }
+    public Integer getAge() {
+        return age;
+    }
 
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
+    public void setAge(Integer age) {
+        this.age = age;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getGender() {
+        return gender;
+    }
 
-    public Double getTemperature() { return temperature; }
-    public void setTemperature(Double temperature) { this.temperature = temperature; }
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
 
-    public Integer getPulseRate() { return pulseRate; }
-    public void setPulseRate(Integer pulseRate) { this.pulseRate = pulseRate; }
+    public LocalDate getVisitDate() {
+        return visitDate;
+    }
 
-    public Integer getSpo2() { return spo2; }
-    public void setSpo2(Integer spo2) { this.spo2 = spo2; }
+    public void setVisitDate(LocalDate visitDate) {
+        this.visitDate = visitDate;
+    }
 
-    public Integer getBpSystolic() { return bpSystolic; }
-    public void setBpSystolic(Integer bpSystolic) { this.bpSystolic = bpSystolic; }
+    public String getPhone() {
+        return phone;
+    }
 
-    public Integer getBpDiastolic() { return bpDiastolic; }
-    public void setBpDiastolic(Integer bpDiastolic) { this.bpDiastolic = bpDiastolic; }
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
 
-    public String getChiefComplaints() { return chiefComplaints; }
-    public void setChiefComplaints(String chiefComplaints) { this.chiefComplaints = chiefComplaints; }
+    public String getEmail() {
+        return email;
+    }
 
-    public String getPresentIllness() { return presentIllness; }
-    public void setPresentIllness(String presentIllness) { this.presentIllness = presentIllness; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public String getGeneralExamination() { return generalExamination; }
-    public void setGeneralExamination(String generalExamination) { this.generalExamination = generalExamination; }
+    public Double getTemperature() {
+        return temperature;
+    }
 
-    public String getHeartExamination() { return heartExamination; }
-    public void setHeartExamination(String heartExamination) { this.heartExamination = heartExamination; }
+    public void setTemperature(Double temperature) {
+        this.temperature = temperature;
+    }
 
-    public String getLungsExamination() { return lungsExamination; }
-    public void setLungsExamination(String lungsExamination) { this.lungsExamination = lungsExamination; }
+    public Integer getPulseRate() {
+        return pulseRate;
+    }
 
-    public String getAbdomenExamination() { return abdomenExamination; }
-    public void setAbdomenExamination(String abdomenExamination) { this.abdomenExamination = abdomenExamination; }
+    public void setPulseRate(Integer pulseRate) {
+        this.pulseRate = pulseRate;
+    }
 
-    public String getRectalExamination() { return rectalExamination; }
-    public void setRectalExamination(String rectalExamination) { this.rectalExamination = rectalExamination; }
+    public Integer getSpo2() {
+        return spo2;
+    }
 
-    public String getDoctor() { return doctor; }
-    public void setDoctor(String doctor) { this.doctor = doctor; }
+    public void setSpo2(Integer spo2) {
+        this.spo2 = spo2;
+    }
+
+    public Integer getBpSystolic() {
+        return bpSystolic;
+    }
+
+    public void setBpSystolic(Integer bpSystolic) {
+        this.bpSystolic = bpSystolic;
+    }
+
+    public Integer getBpDiastolic() {
+        return bpDiastolic;
+    }
+
+    public void setBpDiastolic(Integer bpDiastolic) {
+        this.bpDiastolic = bpDiastolic;
+    }
+
+    public String getChiefComplaints() {
+        return chiefComplaints;
+    }
+
+    public void setChiefComplaints(String chiefComplaints) {
+        this.chiefComplaints = chiefComplaints;
+    }
+
+    public String getPresentIllness() {
+        return presentIllness;
+    }
+
+    public void setPresentIllness(String presentIllness) {
+        this.presentIllness = presentIllness;
+    }
+
+    public String getGeneralExamination() {
+        return generalExamination;
+    }
+
+    public void setGeneralExamination(String generalExamination) {
+        this.generalExamination = generalExamination;
+    }
+
+    public String getHeartExamination() {
+        return heartExamination;
+    }
+
+    public void setHeartExamination(String heartExamination) {
+        this.heartExamination = heartExamination;
+    }
+
+    public String getLungsExamination() {
+        return lungsExamination;
+    }
+
+    public void setLungsExamination(String lungsExamination) {
+        this.lungsExamination = lungsExamination;
+    }
+
+    public String getAbdomenExamination() {
+        return abdomenExamination;
+    }
+
+    public void setAbdomenExamination(String abdomenExamination) {
+        this.abdomenExamination = abdomenExamination;
+    }
+
+    public String getRectalExamination() {
+        return rectalExamination;
+    }
+
+    public void setRectalExamination(String rectalExamination) {
+        this.rectalExamination = rectalExamination;
+    }
+
+    public String getDoctor() {
+        return doctor;
+    }
+
+    public void setDoctor(String doctor) {
+        this.doctor = doctor;
+    }
+
+    public Doctor getDoctorAccount() {
+        return doctorAccount;
+    }
+
+    public void setDoctorAccount(Doctor doctorAccount) {
+        this.doctorAccount = doctorAccount;
+    }
 }

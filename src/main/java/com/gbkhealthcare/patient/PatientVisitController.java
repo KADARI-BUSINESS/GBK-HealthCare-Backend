@@ -6,7 +6,11 @@ import jakarta.validation.constraints.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import com.gbkhealthcare.auth.Doctor;
+import com.gbkhealthcare.auth.DoctorRepository;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,24 +20,34 @@ import java.util.List;
 public class PatientVisitController {
 
     private final PatientVisitService patientVisitService;
+    private final DoctorRepository doctorRepository;
 
     public PatientVisitController(
-            PatientVisitService patientVisitService) {
+            PatientVisitService patientVisitService,
+            DoctorRepository doctorRepository) {
         this.patientVisitService = patientVisitService;
+        this.doctorRepository = doctorRepository;
     }
 
     @PostMapping("/patients/{patientId}/visits")
     @ResponseStatus(HttpStatus.CREATED)
     public VisitResponse createVisit(
             @PathVariable Long patientId,
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody VisitRequest request) {
+
+        Doctor doctor = getAuthenticatedDoctor(jwt);
+
         try {
-            PatientVisit visit = patientVisitService.createVisit(
-                    patientId, request.toPatientVisit());
+            PatientVisit visit = patientVisitService.createVisitForDoctor(
+                    patientId,
+                    doctor.getId(),
+                    request.toPatientVisit());
+
             return VisitResponse.from(visit);
-        } catch (PatientNotFoundException e) {
+        } catch (PatientNotFoundException exception) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, e.getMessage());
+                    HttpStatus.NOT_FOUND, "Patient not found.");
         }
     }
 
@@ -53,13 +67,19 @@ public class PatientVisitController {
     }
 
     @GetMapping("/visits/{visitId}")
-    public VisitResponse getVisit(@PathVariable Long visitId) {
+    public VisitResponse getVisit(
+            @PathVariable Long visitId,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Doctor doctor = getAuthenticatedDoctor(jwt);
+
         try {
             return VisitResponse.from(
-                    patientVisitService.getVisitById(visitId));
-        } catch (IllegalArgumentException e) {
+                    patientVisitService.getVisitByIdForDoctor(
+                            visitId, doctor.getId()));
+        } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, e.getMessage());
+                    HttpStatus.NOT_FOUND, "Visit not found.");
         }
     }
 
@@ -67,17 +87,22 @@ public class PatientVisitController {
     @PutMapping("/visits/{visitId}/follow-up")
     public VisitResponse updateFollowUp(
             @PathVariable Long visitId,
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody FollowUpRequest request) {
+
+        Doctor doctor = getAuthenticatedDoctor(jwt);
+
         try {
-            PatientVisit visit = patientVisitService.updateFollowUp(
+            PatientVisit visit = patientVisitService.updateFollowUpForDoctor(
                     visitId,
+                    doctor.getId(),
                     request.followUpDate,
                     request.followUpNotes);
 
             return VisitResponse.from(visit);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, e.getMessage());
+                    HttpStatus.NOT_FOUND, "Visit not found.");
         }
     }
 
@@ -208,5 +233,14 @@ public class PatientVisitController {
 
         @Size(max = 2000)
         public String followUpNotes;
+    }
+
+    private Doctor getAuthenticatedDoctor(Jwt jwt) {
+        return doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
     }
 }
