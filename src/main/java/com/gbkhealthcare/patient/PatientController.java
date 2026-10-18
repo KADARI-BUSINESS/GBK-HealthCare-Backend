@@ -143,10 +143,6 @@ public class PatientController {
         public String abdomenExamination;
         public String rectalExamination;
 
-        @NotBlank
-        @Size(max = 100)
-        public String doctor;
-
         Patient toPatient() {
             Patient patient = new Patient();
 
@@ -168,7 +164,6 @@ public class PatientController {
             patient.setLungsExamination(blankToNull(lungsExamination));
             patient.setAbdomenExamination(blankToNull(abdomenExamination));
             patient.setRectalExamination(blankToNull(rectalExamination));
-            patient.setDoctor(doctor.trim());
 
             return patient;
         }
