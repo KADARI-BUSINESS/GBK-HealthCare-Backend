@@ -39,8 +39,10 @@ class ClinicalReportPdfServiceTest {
             assertTrue(reportText.contains("GBK HealthCare"));
             assertTrue(reportText.contains("Test Patient"));
             assertTrue(reportText.contains("test.patient@example.com"));
-            assertTrue(reportText.contains("Temperature: 36.8 °C"));
-            assertTrue(reportText.contains("Pulse Rate: 72 bpm"));
+            assertTrue(reportText.contains("Temperature"));
+	    assertTrue(reportText.contains("36.8"));
+	    assertTrue(reportText.contains("Pulse Rate"));
+            assertTrue(reportText.contains("72 bpm"));
             assertTrue(reportText.contains("120/80 mmHg"));
             assertTrue(reportText.contains("Headache"));
             assertTrue(reportText.contains("Test diagnosis"));

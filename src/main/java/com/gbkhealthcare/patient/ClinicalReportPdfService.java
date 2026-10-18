@@ -12,6 +12,7 @@ import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -187,22 +188,14 @@ public class ClinicalReportPdfService {
             PatientVisit visit) throws IOException {
 
         writer.addSection("Vital Signs");
-
-        writer.addField(
-                "Temperature",
-                withUnit(visit.getTemperature(), " °C"));
-
-        writer.addField(
-                "Pulse Rate",
-                withUnit(visit.getPulseRate(), " bpm"));
-
-        writer.addField(
-                "Oxygen Saturation (SpO2)",
-                withUnit(visit.getSpo2(), " %"));
-
-        writer.addField(
-                "Blood Pressure",
-                bloodPressure(visit));
+        writer.addMetricCards(
+                new String[] { "Temperature", "Pulse Rate", "SpO2", "Blood Pressure" },
+                new Object[] {
+                        withUnit(visit.getTemperature(), " °C"),
+                        withUnit(visit.getPulseRate(), " bpm"),
+                        withUnit(visit.getSpo2(), " %"),
+                        bloodPressure(visit)
+                });
     }
 
     private void addClinicalExamination(
@@ -290,12 +283,22 @@ public class ClinicalReportPdfService {
      */
     private final class ReportWriter implements AutoCloseable {
 
-        private static final float MARGIN = 48;
-        private static final float BODY_FONT_SIZE = 10;
-        private static final float LINE_HEIGHT = 14;
+        private static final float MARGIN = 44f;
+        private static final float BODY_FONT_SIZE = 9.5f;
+        private static final float LINE_HEIGHT = 12.5f;
+        private static final float FOOTER_RESERVE = 48f;
+
+        private static final Color NAVY = new Color(29, 39, 85);
+        private static final Color INDIGO = new Color(75, 79, 184);
+        private static final Color TEAL = new Color(22, 157, 157);
+        private static final Color PANEL = new Color(245, 247, 252);
+        private static final Color PALE_INDIGO = new Color(239, 241, 252);
+        private static final Color BORDER = new Color(224, 229, 239);
+        private static final Color TEXT = new Color(42, 49, 67);
+        private static final Color MUTED = new Color(104, 113, 132);
+        private static final Color WHITE = Color.WHITE;
 
         private final PDDocument document;
-
         private PDPageContentStream contentStream;
         private float yPosition;
 
@@ -304,112 +307,207 @@ public class ClinicalReportPdfService {
             startNewPage();
         }
 
-        private void startNewPage() throws IOException {
+        private float pageWidth() {
+            return PDRectangle.A4.getWidth();
+        }
 
+        private float contentWidth() {
+            return pageWidth() - (2 * MARGIN);
+        }
+
+        private void startNewPage() throws IOException {
             if (contentStream != null) {
+                drawFooter();
                 contentStream.close();
             }
 
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
-
             contentStream = new PDPageContentStream(document, page);
 
-            yPosition = page.getMediaBox().getHeight() - MARGIN;
+            float pageHeight = page.getMediaBox().getHeight();
+            float headerHeight = 120f;
+            float headerBottom = pageHeight - headerHeight;
 
-            drawText("GBK HealthCare", boldFont, 18, yPosition);
-            yPosition -= 23;
+            // Deep indigo header and teal accent create a consistent brand bar.
+            contentStream.setNonStrokingColor(NAVY);
+            contentStream.addRect(0, headerBottom, pageWidth(), headerHeight);
+            contentStream.fill();
 
-            drawText(
-                    "PATIENT CLINICAL REPORT",
-                    boldFont,
-                    12,
-                    yPosition);
+            contentStream.setNonStrokingColor(TEAL);
+            contentStream.addRect(0, headerBottom, pageWidth(), 5f);
+            contentStream.fill();
 
-            yPosition -= 18;
+            drawTextAt("GBK HealthCare", boldFont, 20f,
+                    MARGIN, pageHeight - 42f, WHITE);
+            drawTextAt("PATIENT CLINICAL REPORT", boldFont, 10f,
+                    MARGIN, pageHeight - 64f, new Color(225, 231, 255));
+            drawTextAt("Clinical visit summary | Confidential health information",
+                    regularFont, 8f, MARGIN, pageHeight - 82f,
+                    new Color(219, 225, 245));
 
-            contentStream.moveTo(MARGIN, yPosition);
-            contentStream.lineTo(
-                    page.getMediaBox().getWidth() - MARGIN,
-                    yPosition);
-            contentStream.stroke();
+            // Confidentiality badge on the right side of the header.
+            float badgeWidth = 96f;
+            float badgeHeight = 22f;
+            float badgeX = pageWidth() - MARGIN - badgeWidth;
+            float badgeY = pageHeight - 52f;
+            contentStream.setNonStrokingColor(new Color(58, 72, 132));
+            contentStream.addRect(badgeX, badgeY, badgeWidth, badgeHeight);
+            contentStream.fill();
+            drawTextAt("CONFIDENTIAL", boldFont, 7.5f,
+                    badgeX + 12f, badgeY + 8f, WHITE);
 
-            yPosition -= 18;
+            yPosition = headerBottom - 25f;
         }
 
         private void addSection(String title) throws IOException {
+            ensureSpace(34f);
 
-            ensureSpace(30);
-            yPosition -= 3;
+            float boxHeight = 23f;
+            float boxY = yPosition - boxHeight + 4f;
 
-            writeLine(title, boldFont, 12, 17);
+            contentStream.setNonStrokingColor(PALE_INDIGO);
+            contentStream.addRect(MARGIN, boxY, contentWidth(), boxHeight);
+            contentStream.fill();
 
-            yPosition -= 2;
+            contentStream.setNonStrokingColor(TEAL);
+            contentStream.addRect(MARGIN, boxY, 4f, boxHeight);
+            contentStream.fill();
+
+            drawTextAt(title, boldFont, 10.5f,
+                    MARGIN + 12f, boxY + 7.5f, NAVY);
+            yPosition = boxY - 13f;
         }
 
-        private void addField(String label, Object value)
-                throws IOException {
+        private void addField(String label, Object value) throws IOException {
+            String displayValue = displayValue(value);
+            List<String> lines = wrapText(
+                    toSupportedText(displayValue),
+                    regularFont,
+                    BODY_FONT_SIZE,
+                    contentWidth() - 18f);
 
-            String displayValue;
+            float required = 15f + (lines.size() * LINE_HEIGHT) + 8f;
+            ensureSpace(required);
 
-            if (value == null || value.toString().isBlank()) {
-                displayValue = "Not recorded";
-            } else {
-                displayValue = value.toString().trim();
+            float labelX = MARGIN + 8f;
+            drawTextAt(toSupportedText(label), boldFont, 8f,
+                    labelX, yPosition, MUTED);
+
+            float valueY = yPosition - 13f;
+            Color valueColor = "Not recorded".equals(displayValue) ? MUTED : TEXT;
+            for (String line : lines) {
+                drawTextAt(line, regularFont, BODY_FONT_SIZE,
+                        labelX, valueY, valueColor);
+                valueY -= LINE_HEIGHT;
             }
 
-            addParagraph(label + ": " + displayValue);
+            float separatorY = valueY + 4f;
+            contentStream.setStrokingColor(BORDER);
+            contentStream.setLineWidth(0.5f);
+            contentStream.moveTo(MARGIN + 7f, separatorY);
+            contentStream.lineTo(pageWidth() - MARGIN - 7f, separatorY);
+            contentStream.stroke();
+
+            yPosition = valueY - 5f;
+        }
+
+        private void addMetricCards(String[] labels, Object[] values) throws IOException {
+            if (labels == null || values == null || labels.length == 0
+                    || labels.length != values.length) {
+                throw new IllegalArgumentException("Metric labels and values must match.");
+            }
+
+            float cardHeight = 54f;
+            float gap = 7f;
+            float cardWidth = (contentWidth() - ((labels.length - 1) * gap)) / labels.length;
+            ensureSpace(cardHeight + 16f);
+
+            float cardY = yPosition - cardHeight + 2f;
+            for (int i = 0; i < labels.length; i++) {
+                float cardX = MARGIN + i * (cardWidth + gap);
+
+                contentStream.setNonStrokingColor(PANEL);
+                contentStream.addRect(cardX, cardY, cardWidth, cardHeight);
+                contentStream.fill();
+
+                contentStream.setStrokingColor(BORDER);
+                contentStream.setLineWidth(0.6f);
+                contentStream.addRect(cardX, cardY, cardWidth, cardHeight);
+                contentStream.stroke();
+
+                contentStream.setNonStrokingColor(TEAL);
+                contentStream.addRect(cardX, cardY + cardHeight - 3f, cardWidth, 3f);
+                contentStream.fill();
+
+                drawTextAt(toSupportedText(labels[i]), boldFont, 7.2f,
+                        cardX + 7f, cardY + cardHeight - 17f, MUTED);
+
+                String metricValue = toSupportedText(displayValue(values[i]));
+                float valueFontSize = metricValue.length() > 13 ? 8f : 10f;
+                drawTextAt(metricValue, boldFont, valueFontSize,
+                        cardX + 7f, cardY + 17f, INDIGO);
+            }
+
+            yPosition = cardY - 16f;
+        }
+
+        private String displayValue(Object value) {
+            if (value == null || value.toString().isBlank()) {
+                return "Not recorded";
+            }
+            return value.toString().trim();
         }
 
         private void addParagraph(String text) throws IOException {
-
             String cleanedText = toSupportedText(text);
-
             List<String> lines = wrapText(
                     cleanedText,
                     regularFont,
-                    BODY_FONT_SIZE,
-                    PDRectangle.A4.getWidth() - (2 * MARGIN));
+                    8.5f,
+                    contentWidth() - 20f);
 
+            float boxHeight = 16f + (lines.size() * 11f);
+            ensureSpace(boxHeight + 8f);
+            float boxY = yPosition - boxHeight + 4f;
+
+            contentStream.setNonStrokingColor(PANEL);
+            contentStream.addRect(MARGIN, boxY, contentWidth(), boxHeight);
+            contentStream.fill();
+            contentStream.setNonStrokingColor(TEAL);
+            contentStream.addRect(MARGIN, boxY, 3f, boxHeight);
+            contentStream.fill();
+
+            float textY = boxY + boxHeight - 13f;
             for (String line : lines) {
-                writeLine(
-                        line,
-                        regularFont,
-                        BODY_FONT_SIZE,
-                        LINE_HEIGHT);
+                drawTextAt(line, regularFont, 8.5f,
+                        MARGIN + 10f, textY, MUTED);
+                textY -= 11f;
+            }
+            yPosition = boxY - 12f;
+        }
+
+        private void drawFooter() throws IOException {
+            if (contentStream == null) {
+                return;
             }
 
-            yPosition -= 2;
-        }
+            contentStream.setStrokingColor(BORDER);
+            contentStream.setLineWidth(0.6f);
+            contentStream.moveTo(MARGIN, 34f);
+            contentStream.lineTo(pageWidth() - MARGIN, 34f);
+            contentStream.stroke();
 
-        private void writeLine(
-                String text,
-                PDFont font,
-                float fontSize,
-                float lineHeight) throws IOException {
-
-            ensureSpace(lineHeight);
-
-            drawText(text, font, fontSize, yPosition);
-            yPosition -= lineHeight;
-        }
-
-        private void drawText(
-                String text,
-                PDFont font,
-                float fontSize,
-                float y) throws IOException {
-
-            contentStream.beginText();
-            contentStream.setFont(font, fontSize);
-            contentStream.newLineAtOffset(MARGIN, y);
-            contentStream.showText(toSupportedText(text));
-            contentStream.endText();
+            drawTextAt("GBK HealthCare | Confidential clinical information",
+                    regularFont, 7f, MARGIN, 20f, MUTED);
+            String pageLabel = "Page " + document.getNumberOfPages();
+            float pageLabelWidth = boldFont.getStringWidth(pageLabel) * 7f / 1000f;
+            drawTextAt(pageLabel, boldFont, 7f,
+                    pageWidth() - MARGIN - pageLabelWidth, 20f, MUTED);
         }
 
         private void ensureSpace(float requiredSpace) throws IOException {
-
-            if (yPosition - requiredSpace < MARGIN) {
+            if (yPosition - requiredSpace < MARGIN + FOOTER_RESERVE) {
                 startNewPage();
             }
         }
@@ -424,9 +522,7 @@ public class ClinicalReportPdfService {
             StringBuilder currentLine = new StringBuilder();
 
             String[] words = text.split("\\s+");
-
             for (String word : words) {
-
                 if (word.isBlank()) {
                     continue;
                 }
@@ -434,18 +530,15 @@ public class ClinicalReportPdfService {
                 String candidate = currentLine.isEmpty()
                         ? word
                         : currentLine + " " + word;
-
-                float candidateWidth = font.getStringWidth(candidate) * fontSize / 1000;
+                float candidateWidth = font.getStringWidth(candidate) * fontSize / 1000f;
 
                 if (candidateWidth <= maxWidth) {
                     currentLine.setLength(0);
                     currentLine.append(candidate);
                 } else {
-
                     if (!currentLine.isEmpty()) {
                         lines.add(currentLine.toString());
                     }
-
                     currentLine.setLength(0);
                     currentLine.append(word);
                 }
@@ -454,32 +547,21 @@ public class ClinicalReportPdfService {
             if (!currentLine.isEmpty()) {
                 lines.add(currentLine.toString());
             }
-
             if (lines.isEmpty()) {
                 lines.add(" ");
             }
-
             return lines;
         }
 
-        /**
-         * PDFBox's standard Helvetica font supports a limited character set.
-         * Unsupported characters are replaced with '?' in this initial version.
-         */
         private String toSupportedText(String text) {
-
             if (text == null) {
                 return "";
             }
 
             StringBuilder result = new StringBuilder();
-
             for (int offset = 0; offset < text.length();) {
-
                 int codePoint = text.codePointAt(offset);
-
                 String character = new String(Character.toChars(codePoint));
-
                 if (Character.isISOControl(codePoint)) {
                     result.append(' ');
                 } else {
@@ -490,20 +572,34 @@ public class ClinicalReportPdfService {
                         result.append('?');
                     }
                 }
-
                 offset += Character.charCount(codePoint);
             }
-
             return result.toString().replaceAll("\\s+", " ").trim();
+        }
+
+        private void drawTextAt(
+                String text,
+                PDFont font,
+                float fontSize,
+                float x,
+                float y,
+                Color color) throws IOException {
+            contentStream.setNonStrokingColor(color);
+            contentStream.beginText();
+            contentStream.setFont(font, fontSize);
+            contentStream.newLineAtOffset(x, y);
+            contentStream.showText(toSupportedText(text));
+            contentStream.endText();
         }
 
         @Override
         public void close() throws IOException {
-
             if (contentStream != null) {
+                drawFooter();
                 contentStream.close();
                 contentStream = null;
             }
         }
     }
+
 }
