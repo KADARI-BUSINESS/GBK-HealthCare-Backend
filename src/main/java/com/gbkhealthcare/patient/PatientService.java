@@ -1,4 +1,3 @@
-
 package com.gbkhealthcare.patient;
 
 import org.springframework.stereotype.Service;
@@ -21,11 +20,9 @@ public class PatientService {
 
     @Transactional
     public Patient create(Patient patient) {
-        // Create the patient record first.
         patient.setId(null);
         Patient savedPatient = patientRepository.save(patient);
 
-        // Create the initial visit linked to the saved patient.
         PatientVisit visit = new PatientVisit();
         visit.setPatient(savedPatient);
         visit.setVisitNumber(1);
@@ -55,8 +52,27 @@ public class PatientService {
     }
 
     @Transactional(readOnly = true)
+    public List<Patient> findAllByDoctorAccountId(Long doctorAccountId) {
+        return patientRepository
+                .findAllByDoctorAccount_IdOrderByVisitDateDesc(
+                        doctorAccountId);
+    }
+
+    @Transactional(readOnly = true)
     public Patient findById(Long id) {
         return patientRepository.findById(id)
                 .orElseThrow(() -> new PatientNotFoundException(id));
+    }
+
+    @Transactional(readOnly = true)
+    public Patient findByIdForDoctor(
+            Long patientId,
+            Long doctorAccountId) {
+
+        return patientRepository
+                .findByIdAndDoctorAccount_Id(
+                        patientId,
+                        doctorAccountId)
+                .orElseThrow(() -> new PatientNotFoundException(patientId));
     }
 }
