@@ -53,16 +53,18 @@ public class PatientVisitController {
 
     @GetMapping("/patients/{patientId}/visits")
     public List<VisitResponse> getPatientVisits(
-            @PathVariable Long patientId) {
+            @PathVariable Long patientId,
+            @AuthenticationPrincipal Jwt jwt) {
+        Doctor doctor = getAuthenticatedDoctor(jwt);
         try {
             return patientVisitService
-                    .getVisitsByPatientId(patientId)
+                    .getVisitsByPatientIdForDoctor(patientId, doctor.getId())
                     .stream()
                     .map(VisitResponse::from)
                     .toList();
         } catch (PatientNotFoundException e) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, e.getMessage());
+                    HttpStatus.NOT_FOUND, "Patient not found.");
         }
     }
 

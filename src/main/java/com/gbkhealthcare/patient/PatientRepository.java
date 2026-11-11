@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface PatientRepository
                 extends JpaRepository<Patient, Long> {
 
+        long countByDoctorAccount_Id(Long doctorAccountId);
+
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT p FROM Patient p WHERE p.id = :patientId")
         Optional<Patient> findByIdForUpdate(

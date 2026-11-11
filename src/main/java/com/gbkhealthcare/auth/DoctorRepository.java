@@ -10,4 +10,6 @@ public interface DoctorRepository
     Optional<Doctor> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    long countByEnabledTrue();
 }

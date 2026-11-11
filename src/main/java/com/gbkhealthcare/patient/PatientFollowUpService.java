@@ -28,17 +28,18 @@ public class PatientFollowUpService {
     @Transactional
     public PatientFollowUp scheduleFollowUp(
             Long visitId,
+            Long doctorAccountId,
             LocalDate followUpDate,
             String followUpNotes) {
+
+        PatientVisit visit = visitRepository
+                .findByIdAndPatient_DoctorAccount_Id(visitId, doctorAccountId)
+                .orElseThrow(FollowUpResourceNotFoundException::new);
 
         if (followUpDate == null) {
             throw new IllegalArgumentException(
                     "Follow-up date is required.");
         }
-
-        PatientVisit visit = visitRepository.findById(visitId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Visit with ID " + visitId + " was not found."));
 
         PatientFollowUp followUp = new PatientFollowUp();
         followUp.setVisit(visit);
@@ -50,38 +51,46 @@ public class PatientFollowUpService {
     }
 
     @Transactional(readOnly = true)
-    public List<PatientFollowUp> getFollowUpsByVisit(Long visitId) {
+    public List<PatientFollowUp> getFollowUpsByVisit(
+            Long visitId,
+            Long doctorAccountId) {
 
-        if (!visitRepository.existsById(visitId)) {
-            throw new IllegalArgumentException(
-                    "Visit with ID " + visitId + " was not found.");
+        if (visitRepository.findByIdAndPatient_DoctorAccount_Id(
+                visitId, doctorAccountId).isEmpty()) {
+            throw new FollowUpResourceNotFoundException();
         }
 
-        return followUpRepository.findByVisitIdWithDetails(visitId);
+        return followUpRepository
+                .findByVisitIdAndDoctorAccountIdWithDetails(visitId, doctorAccountId);
     }
 
     @Transactional(readOnly = true)
-    public List<PatientFollowUp> getFollowUpsByPatient(Long patientId) {
+    public List<PatientFollowUp> getFollowUpsByPatient(
+            Long patientId,
+            Long doctorAccountId) {
 
-        if (!patientRepository.existsById(patientId)) {
-            throw new IllegalArgumentException(
-                    "Patient with ID " + patientId + " was not found.");
+        if (patientRepository.findByIdAndDoctorAccount_Id(
+                patientId, doctorAccountId).isEmpty()) {
+            throw new FollowUpResourceNotFoundException();
         }
 
-        return followUpRepository.findByPatientIdWithDetails(patientId);
+        return followUpRepository
+                .findByPatientIdAndDoctorAccountIdWithDetails(patientId, doctorAccountId);
     }
 
     @Transactional(readOnly = true)
-    public List<PatientFollowUp> getUpcomingFollowUps() {
+    public List<PatientFollowUp> getUpcomingFollowUps(Long doctorAccountId) {
 
-        return followUpRepository.findUpcomingWithDetails(
+        return followUpRepository.findUpcomingWithDetailsForDoctor(
                 "SCHEDULED",
-                LocalDate.now());
+                LocalDate.now(),
+                doctorAccountId);
     }
 
     @Transactional
     public PatientFollowUp rescheduleFollowUp(
             Long followUpId,
+            Long doctorAccountId,
             LocalDate newDate,
             String notes) {
 
@@ -90,7 +99,7 @@ public class PatientFollowUpService {
                     "Follow-up date is required.");
         }
 
-        PatientFollowUp followUp = findFollowUp(followUpId);
+        PatientFollowUp followUp = findFollowUp(followUpId, doctorAccountId);
 
         if ("CANCELLED".equals(followUp.getStatus())) {
             throw new IllegalStateException(
@@ -109,9 +118,9 @@ public class PatientFollowUpService {
     }
 
     @Transactional
-    public PatientFollowUp completeFollowUp(Long followUpId) {
+    public PatientFollowUp completeFollowUp(Long followUpId, Long doctorAccountId) {
 
-        PatientFollowUp followUp = findFollowUp(followUpId);
+        PatientFollowUp followUp = findFollowUp(followUpId, doctorAccountId);
 
         if ("CANCELLED".equals(followUp.getStatus())) {
             throw new IllegalStateException(
@@ -125,9 +134,9 @@ public class PatientFollowUpService {
     }
 
     @Transactional
-    public PatientFollowUp cancelFollowUp(Long followUpId) {
+    public PatientFollowUp cancelFollowUp(Long followUpId, Long doctorAccountId) {
 
-        PatientFollowUp followUp = findFollowUp(followUpId);
+        PatientFollowUp followUp = findFollowUp(followUpId, doctorAccountId);
 
         if ("COMPLETED".equals(followUp.getStatus())) {
             throw new IllegalStateException(
@@ -139,11 +148,10 @@ public class PatientFollowUpService {
         return followUpRepository.save(followUp);
     }
 
-    private PatientFollowUp findFollowUp(Long followUpId) {
+    private PatientFollowUp findFollowUp(Long followUpId, Long doctorAccountId) {
 
-        return followUpRepository.findByIdWithDetails(followUpId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Follow-up with ID " + followUpId
-                                + " was not found."));
+        return followUpRepository
+                .findByIdAndDoctorAccountIdWithDetails(followUpId, doctorAccountId)
+                .orElseThrow(FollowUpResourceNotFoundException::new);
     }
 }

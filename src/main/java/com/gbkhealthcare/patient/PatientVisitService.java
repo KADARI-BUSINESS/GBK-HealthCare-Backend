@@ -39,17 +39,6 @@ public class PatientVisitService {
         }
 
         @Transactional(readOnly = true)
-        public List<PatientVisit> getVisitsByPatientId(Long patientId) {
-                if (!patientRepository.existsById(patientId)) {
-                        throw new PatientNotFoundException(
-                                        "Patient with ID " + patientId + " was not found.");
-                }
-
-                return patientVisitRepository
-                                .findByPatient_IdOrderByVisitDateDesc(patientId);
-        }
-
-        @Transactional(readOnly = true)
         public PatientVisit getVisitById(Long visitId) {
                 return patientVisitRepository.findById(visitId)
                                 .orElseThrow(() -> new IllegalArgumentException(
@@ -112,7 +101,8 @@ public class PatientVisitService {
                                 .orElseThrow(() -> new PatientNotFoundException(patientId));
 
                 return patientVisitRepository
-                                .findByPatient_IdOrderByVisitDateDesc(patient.getId());
+                                .findByPatient_IdAndPatient_DoctorAccount_IdOrderByVisitDateDesc(
+                                                patient.getId(), doctorAccountId);
         }
 
         @Transactional(readOnly = true)
