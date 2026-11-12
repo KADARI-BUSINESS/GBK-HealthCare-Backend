@@ -20,7 +20,7 @@ public class JwtTokenService {
     public JwtTokenService(
             JwtEncoder jwtEncoder,
             @Value("${app.security.jwt-issuer:gbk-healthcare}") String issuer,
-            @Value("${app.security.jwt-expiration-seconds:3600}") long expirationSeconds) {
+            @Value("${app.security.jwt-expiration-seconds:900}") long expirationSeconds) {
 
         if (expirationSeconds <= 0) {
             throw new IllegalArgumentException(

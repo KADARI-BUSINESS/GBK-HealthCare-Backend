@@ -6,18 +6,25 @@ import com.gbkhealthcare.auth.DoctorRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/patients")
 public class PatientController {
+
+    private static final Set<Integer> ALLOWED_PAGE_SIZES = Set.of(10, 20, 50);
 
     private final PatientService patientService;
     private final DoctorRepository doctorRepository;
@@ -64,6 +71,78 @@ public class PatientController {
                         "Active doctor account not found."));
 
         return patientService.findAllByDoctorAccountId(doctor.getId());
+    }
+
+    @GetMapping("/paged")
+    public PatientPageResponse findPage(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String gender) {
+
+        if (page < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Page must be zero or greater.");
+        }
+        if (!ALLOWED_PAGE_SIZES.contains(size)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Page size must be 10, 20, or 50.");
+        }
+        if (search != null && search.length() > 160) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Search text is too long.");
+        }
+        if (gender != null && !gender.isBlank()
+                && !Set.of("Male", "Female", "Other").contains(gender)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Gender filter is invalid.");
+        }
+
+        Doctor doctor = doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
+
+        return patientService.findPageByDoctorAccountId(
+                doctor.getId(), page, size, search, gender);
+    }
+
+    @GetMapping(value = "/export.csv", produces = "text/csv")
+    public ResponseEntity<StreamingResponseBody> exportCsv(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String gender) {
+
+        validateFilters(search, gender);
+        Doctor doctor = doctorRepository
+                .findByEmailIgnoreCase(jwt.getSubject())
+                .filter(Doctor::isEnabled)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Active doctor account not found."));
+
+        StreamingResponseBody body = outputStream -> patientService.writeCsvForDoctor(
+                doctor.getId(), search, gender, outputStream);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"gbk-healthcare-patients.csv\"")
+                .body(body);
+    }
+
+    private static void validateFilters(String search, String gender) {
+        if (search != null && search.length() > 160) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Search text is too long.");
+        }
+        if (gender != null && !gender.isBlank()
+                && !Set.of("Male", "Female", "Other").contains(gender)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Gender filter is invalid.");
+        }
     }
 
     @GetMapping("/{id}")

@@ -23,6 +23,12 @@ logs/
 
 # Operating system files
 .DS_Store
-Thumbs.dbfrontend-integration/
+Thumbs.db
 
 /frontend-integration/
+
+# Local deployment bundles and generated diagnostic artifacts
+*.jar
+*.zip
+/diagnostic-deployment/
+/META-INF/

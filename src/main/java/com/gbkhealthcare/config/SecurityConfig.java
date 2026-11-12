@@ -18,7 +18,8 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
 
-                // REST API uses Bearer tokens, not cookie-based sessions.
+                // API data calls use bearer JWTs. Cookie-authenticated auth endpoints
+                // validate a double-submit CSRF token in DoctorAuthController.
                 .csrf(csrf -> csrf.disable())
 
                 .sessionManagement(session -> session
@@ -27,10 +28,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Only the doctor login endpoint is public.
+                        // Login and refresh use the refresh cookie and controller CSRF checks.
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/api/auth/doctor/login")
+                                "/api/auth/doctor/login",
+                                "/api/auth/doctor/refresh",
+                                "/api/auth/doctor/logout")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/doctor/csrf")
                         .permitAll()
 
                         // Other API endpoints require a doctor JWT.

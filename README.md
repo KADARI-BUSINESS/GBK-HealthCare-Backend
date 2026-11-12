@@ -10,12 +10,9 @@ Spring Boot REST API for GBK HealthCare.
 
 ## Database configuration
 
-The application uses the TiDB Cloud JDBC endpoint configured in
-`src/main/resources/application.properties`. The connection URL and database
-name are already configured there. Running the backend with these settings
-connects to that TiDB cluster; use it only when that is intended. Do not replace
-the configured endpoint with local MySQL values when running against the
-production cluster.
+The application reads its JDBC connection URL and credentials from environment
+variables. Set the TiDB Cloud connection URL in `DB_URL`; do not put the URL or
+database credentials in source-controlled properties files.
 
 Set these environment variables before starting the backend:
 
@@ -24,41 +21,72 @@ Set these environment variables before starting the backend:
   generated cluster username prefix (for example, `<cluster-prefix>.root` for
   the root SQL account); `root` alone will fail for those endpoints.
 - `DB_PASSWORD`: the SQL password for that username.
+- `DB_URL`: the TiDB Cloud JDBC URL, including the database name and TLS options
+  supplied for the cluster.
 - `JWT_SECRET_BASE64`: a Base64-encoded random signing key containing at least
   32 bytes. Keep it private and consistent across backend instances so issued
   JWTs remain verifiable.
 
-Use the credentials and TLS connection details supplied by TiDB Cloud. Never
-put real database or JWT secrets in source control. In PowerShell, assign the
-three environment variables for the current terminal session before running
-Maven (for example, `$env:DB_USERNAME = '<username from TiDB Connect>'`).
+Use the TLS connection details supplied by TiDB Cloud. Never put real database,
+JWT, or SMTP secrets in source control. Report email delivery also uses
+`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, and `MAIL_APP_PASSWORD`; the username
+and app password must be set in the runtime environment when email delivery is
+enabled.
 
 ## Run locally
 
 From this directory, after setting the required environment variables:
 
 ```powershell
+$env:SPRING_PROFILES_ACTIVE = 'local'
 mvn spring-boot:run
 ```
 
-The default backend port is `8080` (`PORT` can override it). The frontend's
-local API default is `http://localhost:8080`; set `VITE_API_BASE_URL` to
-override it.
+The local profile keeps schema updates enabled for development and uses local
+cookie/CORS settings. The backend listens on port `5000` locally; the frontend
+defaults to `http://localhost:5000`. Set `PORT` to override the backend port or
+`VITE_API_BASE_URL` to override the frontend API URL.
+
+For production, activate the `prod` profile with
+`SPRING_PROFILES_ACTIVE=prod`. It validates the pre-provisioned schema and does
+not return internal exception messages. Provision required schema changes
+through the approved database process before starting the application; the
+production profile does not create or update tables. The server honors the
+platform-provided `PORT` value and falls back to `5000`.
 
 ## Authentication and authorization
 
 Doctor login is available at `POST /api/auth/doctor/login` and accepts the
-doctor's email and password. On success, the response contains a signed JWT.
-All other `/api/**` routes require that token in the request header:
+doctor's email and password. On success, the response contains a short-lived
+signed JWT and sets a persistent, HttpOnly refresh cookie. Refresh secrets are
+stored only as hashes in the `doctor_refresh_sessions` table. All data API calls
+continue to require the access token in the request header:
 
 ```http
 Authorization: Bearer <doctor-jwt>
 ```
 
-The backend is stateless and authorizes API requests with the `SCOPE_DOCTOR`
-authority. Patient, visit, follow-up, report, and dashboard data access is
-scoped to the authenticated doctor. The login endpoint is public; CORS preflight
-`OPTIONS` requests are also permitted.
+`POST /api/auth/doctor/refresh` rotates the refresh cookie and returns a new
+access token plus a CSRF value. `POST /api/auth/doctor/logout` revokes the
+refresh-token family and clears both auth cookies. Both endpoints require the
+CSRF value in the `X-XSRF-TOKEN` header and use credentialed requests. On a
+fresh app load, `GET /api/auth/doctor/csrf` bootstraps a CSRF value so the app
+can call refresh. The CSRF value is safe for JavaScript; the refresh secret
+never appears in a response body. The refresh cookie is HttpOnly, Secure,
+SameSite=None, and scoped to the doctor auth path. Browser clients must include
+credentials on login, CSRF bootstrap, refresh, and logout.
+Access tokens expire after 15 minutes by default; refresh sessions expire after
+30 days by default. Set `JWT_EXPIRATION_SECONDS` or
+`REFRESH_EXPIRATION_SECONDS` to override those durations.
+`AUTH_ALLOWED_ORIGINS` controls browser origins; set it to the exact production
+frontend origin(s) in production. Its default includes the local Vite app and
+the configured Amplify frontend.
+
+The backend is stateless for data API authorization and uses the `SCOPE_DOCTOR`
+authority. Patient, visit, follow-up, report, and dashboard data access remains
+scoped to the authenticated doctor. Login, refresh, and logout are public to the
+security filter chain; cookie endpoints enforce CSRF with the double-submit
+token. CORS preflight `OPTIONS` requests are also permitted.
 
 The optional doctor bootstrap runner is disabled by default. Configure its
 environment variables only when intentionally provisioning an initial doctor;
@@ -76,9 +104,8 @@ least one nonblank clinical text field or a recorded vital sign.
 
 ## Schema management
 
-Hibernate is currently configured with `spring.jpa.hibernate.ddl-auto=update`.
-At startup, Hibernate may alter tables to match entity mappings. This can make
-schema changes without a reviewed migration and should be treated carefully for
-production data. Do not change this setting without first agreeing on a schema
-migration strategy and reviewing the consequences; this project currently has
-no migration-based schema tool configured.
+The local profile uses `spring.jpa.hibernate.ddl-auto=update` for development.
+The production profile uses `validate`, so startup fails if the pre-provisioned
+database schema does not match the application entities. This project currently
+has no migration-based schema tool configured; schema changes must be reviewed
+and provisioned separately before production deployment.
