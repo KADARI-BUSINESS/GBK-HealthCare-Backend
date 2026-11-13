@@ -19,7 +19,8 @@ class PatientCsvExportTest {
     @BeforeEach
     void setUp() {
         repository = mock(PatientRepository.class);
-        service = new PatientService(repository, mock(PatientVisitRepository.class));
+        service = new PatientService(repository, mock(PatientVisitRepository.class),
+                mock(DoctorActivityService.class));
     }
 
     @Test

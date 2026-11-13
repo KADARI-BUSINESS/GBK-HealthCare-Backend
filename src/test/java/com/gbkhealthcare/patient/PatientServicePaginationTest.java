@@ -27,7 +27,8 @@ class PatientServicePaginationTest {
     @BeforeEach
     void setUp() {
         patientRepository = mock(PatientRepository.class);
-        patientService = new PatientService(patientRepository, mock(PatientVisitRepository.class));
+        patientService = new PatientService(patientRepository, mock(PatientVisitRepository.class),
+                mock(DoctorActivityService.class));
     }
 
     @Test

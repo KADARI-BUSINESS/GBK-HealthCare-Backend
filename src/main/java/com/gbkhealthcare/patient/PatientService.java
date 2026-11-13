@@ -21,16 +21,23 @@ public class PatientService {
 
     private final PatientRepository patientRepository;
     private final PatientVisitRepository patientVisitRepository;
+    private final DoctorActivityService activityService;
 
     public PatientService(
             PatientRepository patientRepository,
-            PatientVisitRepository patientVisitRepository) {
+            PatientVisitRepository patientVisitRepository,
+            DoctorActivityService activityService) {
         this.patientRepository = patientRepository;
         this.patientVisitRepository = patientVisitRepository;
+        this.activityService = activityService;
     }
 
     @Transactional
     public Patient create(Patient patient) {
+        if (patient.getDoctorAccount() == null || patient.getDoctorAccount().getId() == null) {
+            throw new IllegalStateException("Patient registration requires an authenticated doctor.");
+        }
+        Long doctorId = patient.getDoctorAccount().getId();
         patient.setId(null);
         Patient savedPatient = patientRepository.save(patient);
 
@@ -53,6 +60,12 @@ public class PatientService {
         visit.setDoctor(savedPatient.getDoctor());
 
         patientVisitRepository.save(visit);
+
+        // Registration creates the initial visit as part of this operation. Log only
+        // the registration so the generated visit is not misreported as a second action.
+        activityService.recordActivity(doctorId,
+                DoctorActivity.ActionType.PATIENT_REGISTERED,
+                DoctorActivity.EntityType.PATIENT, savedPatient.getId());
 
         return savedPatient;
     }

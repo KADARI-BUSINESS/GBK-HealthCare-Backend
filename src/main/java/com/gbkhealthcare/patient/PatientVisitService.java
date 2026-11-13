@@ -12,12 +12,15 @@ public class PatientVisitService {
 
         private final PatientVisitRepository patientVisitRepository;
         private final PatientRepository patientRepository;
+        private final DoctorActivityService activityService;
 
         public PatientVisitService(
                         PatientVisitRepository patientVisitRepository,
-                        PatientRepository patientRepository) {
+                        PatientRepository patientRepository,
+                        DoctorActivityService activityService) {
                 this.patientVisitRepository = patientVisitRepository;
                 this.patientRepository = patientRepository;
+                this.activityService = activityService;
         }
 
         @Transactional
@@ -88,7 +91,11 @@ public class PatientVisitService {
                 // Do not trust the doctor name supplied by the request.
                 visit.setDoctor(patient.getDoctorAccount().getFullName());
 
-                return patientVisitRepository.save(visit);
+                PatientVisit savedVisit = patientVisitRepository.save(visit);
+                activityService.recordActivity(doctorAccountId,
+                                DoctorActivity.ActionType.VISIT_RECORDED,
+                                DoctorActivity.EntityType.VISIT, savedVisit.getId());
+                return savedVisit;
         }
 
         @Transactional(readOnly = true)

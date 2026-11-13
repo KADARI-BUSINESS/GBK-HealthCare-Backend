@@ -21,6 +21,7 @@ class PatientFollowUpServiceTest {
     private PatientFollowUpRepository followUpRepository;
     private PatientVisitRepository visitRepository;
     private PatientRepository patientRepository;
+    private DoctorActivityService activityService;
     private PatientFollowUpService service;
 
     @BeforeEach
@@ -28,8 +29,9 @@ class PatientFollowUpServiceTest {
         followUpRepository = mock(PatientFollowUpRepository.class);
         visitRepository = mock(PatientVisitRepository.class);
         patientRepository = mock(PatientRepository.class);
+        activityService = mock(DoctorActivityService.class);
         service = new PatientFollowUpService(
-                followUpRepository, visitRepository, patientRepository);
+                followUpRepository, visitRepository, patientRepository, activityService);
     }
 
     @Test
@@ -95,6 +97,7 @@ class PatientFollowUpServiceTest {
                 () -> service.scheduleFollowUp(
                         VISIT_ID, DOCTOR_A_ID, LocalDate.now(), null));
         verify(followUpRepository, never()).save(any());
+        verify(activityService, never()).recordActivity(anyLong(), any(), any(), anyLong());
     }
 
     @Test
@@ -119,6 +122,21 @@ class PatientFollowUpServiceTest {
         assertEquals(followUp, service.rescheduleFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID, newDate, "updated"));
         assertEquals(newDate, followUp.getFollowUpDate());
         assertEquals("updated", followUp.getFollowUpNotes());
+        verify(activityService).recordActivity(DOCTOR_A_ID,
+                DoctorActivity.ActionType.FOLLOW_UP_RESCHEDULED,
+                DoctorActivity.EntityType.FOLLOW_UP, FOLLOW_UP_ID);
+    }
+
+    @Test
+    void repeatingSameFollowUpDateDoesNotCreateASecondRescheduleEvent() {
+        PatientFollowUp followUp = followUp();
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(followUp));
+        when(followUpRepository.save(followUp)).thenReturn(followUp);
+
+        service.rescheduleFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID, followUp.getFollowUpDate(), "same date");
+
+        verify(activityService, never()).recordActivity(anyLong(), any(), any(), anyLong());
     }
 
     @Test
@@ -130,6 +148,9 @@ class PatientFollowUpServiceTest {
         assertEquals(followUp, service.completeFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID));
         assertEquals("COMPLETED", followUp.getStatus());
         assertNotNull(followUp.getCompletedAt());
+        verify(activityService).recordActivity(DOCTOR_A_ID,
+                DoctorActivity.ActionType.FOLLOW_UP_COMPLETED,
+                DoctorActivity.EntityType.FOLLOW_UP, FOLLOW_UP_ID);
     }
 
     @Test
@@ -140,6 +161,46 @@ class PatientFollowUpServiceTest {
         when(followUpRepository.save(followUp)).thenReturn(followUp);
         assertEquals(followUp, service.cancelFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID));
         assertEquals("CANCELLED", followUp.getStatus());
+        verify(activityService).recordActivity(DOCTOR_A_ID,
+                DoctorActivity.ActionType.FOLLOW_UP_CANCELLED,
+                DoctorActivity.EntityType.FOLLOW_UP, FOLLOW_UP_ID);
+    }
+
+    @Test
+    void schedulesFollowUpAndRecordsActivityForAuthenticatedDoctor() {
+        PatientVisit visit = visit(DOCTOR_A_ID);
+        when(visitRepository.findByIdAndPatient_DoctorAccount_Id(VISIT_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(visit));
+        when(followUpRepository.save(any(PatientFollowUp.class))).thenAnswer(invocation -> {
+            PatientFollowUp saved = invocation.getArgument(0);
+            saved.setId(FOLLOW_UP_ID);
+            return saved;
+        });
+
+        PatientFollowUp saved = service.scheduleFollowUp(
+                VISIT_ID, DOCTOR_A_ID, LocalDate.of(2026, 12, 1), "review");
+
+        assertEquals(FOLLOW_UP_ID, saved.getId());
+        verify(activityService).recordActivity(DOCTOR_A_ID,
+                DoctorActivity.ActionType.FOLLOW_UP_SCHEDULED,
+                DoctorActivity.EntityType.FOLLOW_UP, FOLLOW_UP_ID);
+    }
+
+    @Test
+    void repeatedCompletionAndCancellationDoNotRecordDuplicateEvents() {
+        PatientFollowUp completed = followUp();
+        completed.setStatus("COMPLETED");
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(completed));
+        service.completeFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID);
+
+        PatientFollowUp cancelled = followUp();
+        cancelled.setStatus("CANCELLED");
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID + 1, DOCTOR_A_ID))
+                .thenReturn(Optional.of(cancelled));
+        service.cancelFollowUp(FOLLOW_UP_ID + 1, DOCTOR_A_ID);
+
+        verify(activityService, never()).recordActivity(anyLong(), any(), any(), anyLong());
     }
     @Test
     void bulkFollowUpsMapsAllStatusesAndUsesDoctorScopedRepositoryQuery() {

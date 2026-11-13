@@ -14,15 +14,18 @@ public class PatientFollowUpService {
     private final PatientFollowUpRepository followUpRepository;
     private final PatientVisitRepository visitRepository;
     private final PatientRepository patientRepository;
+    private final DoctorActivityService activityService;
 
     public PatientFollowUpService(
             PatientFollowUpRepository followUpRepository,
             PatientVisitRepository visitRepository,
-            PatientRepository patientRepository) {
+            PatientRepository patientRepository,
+            DoctorActivityService activityService) {
 
         this.followUpRepository = followUpRepository;
         this.visitRepository = visitRepository;
         this.patientRepository = patientRepository;
+        this.activityService = activityService;
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +64,11 @@ public class PatientFollowUpService {
         followUp.setFollowUpNotes(followUpNotes);
         followUp.setStatus("SCHEDULED");
 
-        return followUpRepository.save(followUp);
+        PatientFollowUp savedFollowUp = followUpRepository.save(followUp);
+        activityService.recordActivity(doctorAccountId,
+                DoctorActivity.ActionType.FOLLOW_UP_SCHEDULED,
+                DoctorActivity.EntityType.FOLLOW_UP, savedFollowUp.getId());
+        return savedFollowUp;
     }
 
     @Transactional(readOnly = true)
@@ -125,10 +132,16 @@ public class PatientFollowUpService {
                     "A completed follow-up cannot be rescheduled.");
         }
 
+        boolean dateChanged = !newDate.equals(followUp.getFollowUpDate());
         followUp.setFollowUpDate(newDate);
         followUp.setFollowUpNotes(notes);
-
-        return followUpRepository.save(followUp);
+        PatientFollowUp savedFollowUp = followUpRepository.save(followUp);
+        if (dateChanged) {
+            activityService.recordActivity(doctorAccountId,
+                    DoctorActivity.ActionType.FOLLOW_UP_RESCHEDULED,
+                    DoctorActivity.EntityType.FOLLOW_UP, savedFollowUp.getId());
+        }
+        return savedFollowUp;
     }
 
     @Transactional
@@ -141,10 +154,17 @@ public class PatientFollowUpService {
                     "A cancelled follow-up cannot be completed.");
         }
 
+        if ("COMPLETED".equals(followUp.getStatus())) {
+            return followUp;
+        }
+
         followUp.setStatus("COMPLETED");
         followUp.setCompletedAt(LocalDateTime.now());
-
-        return followUpRepository.save(followUp);
+        PatientFollowUp savedFollowUp = followUpRepository.save(followUp);
+        activityService.recordActivity(doctorAccountId,
+                DoctorActivity.ActionType.FOLLOW_UP_COMPLETED,
+                DoctorActivity.EntityType.FOLLOW_UP, savedFollowUp.getId());
+        return savedFollowUp;
     }
 
     @Transactional
@@ -157,9 +177,16 @@ public class PatientFollowUpService {
                     "A completed follow-up cannot be cancelled.");
         }
 
-        followUp.setStatus("CANCELLED");
+        if ("CANCELLED".equals(followUp.getStatus())) {
+            return followUp;
+        }
 
-        return followUpRepository.save(followUp);
+        followUp.setStatus("CANCELLED");
+        PatientFollowUp savedFollowUp = followUpRepository.save(followUp);
+        activityService.recordActivity(doctorAccountId,
+                DoctorActivity.ActionType.FOLLOW_UP_CANCELLED,
+                DoctorActivity.EntityType.FOLLOW_UP, savedFollowUp.getId());
+        return savedFollowUp;
     }
 
     private PatientFollowUp findFollowUp(Long followUpId, Long doctorAccountId) {

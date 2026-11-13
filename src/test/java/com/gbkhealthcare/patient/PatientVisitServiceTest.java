@@ -18,13 +18,15 @@ class PatientVisitServiceTest {
 
     private PatientVisitRepository visitRepository;
     private PatientRepository patientRepository;
+    private DoctorActivityService activityService;
     private PatientVisitService service;
 
     @BeforeEach
     void setUp() {
         visitRepository = mock(PatientVisitRepository.class);
         patientRepository = mock(PatientRepository.class);
-        service = new PatientVisitService(visitRepository, patientRepository);
+        activityService = mock(DoctorActivityService.class);
+        service = new PatientVisitService(visitRepository, patientRepository, activityService);
     }
 
     @Test
@@ -98,6 +100,33 @@ class PatientVisitServiceTest {
                 PatientVisitController.todayInIndia(java.time.Instant.parse("2026-11-12T18:30:00Z")));
         assertEquals(java.time.LocalDate.of(2026, 11, 12),
                 PatientVisitController.todayInIndia(java.time.Instant.parse("2026-11-12T18:29:59Z")));
+    }
+
+    @Test
+    void explicitVisitCreationRecordsDoctorActivity() {
+        Patient patient = patientOwnedBy(DOCTOR_A_ID);
+        when(patientRepository.findByIdForUpdate(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(visitRepository.findMaxVisitNumberByPatientId(PATIENT_ID)).thenReturn(0);
+        when(visitRepository.save(any(PatientVisit.class))).thenAnswer(invocation -> {
+            PatientVisit saved = invocation.getArgument(0);
+            saved.setId(10L);
+            return saved;
+        });
+
+        PatientVisit saved = service.createVisitForDoctor(PATIENT_ID, DOCTOR_A_ID, new PatientVisit());
+
+        assertEquals(10L, saved.getId());
+        verify(activityService).recordActivity(DOCTOR_A_ID,
+                DoctorActivity.ActionType.VISIT_RECORDED,
+                DoctorActivity.EntityType.VISIT, 10L);
+    }
+
+    @Test
+    void failedVisitCreationDoesNotRecordActivity() {
+        when(patientRepository.findByIdForUpdate(PATIENT_ID)).thenReturn(Optional.empty());
+        assertThrows(PatientNotFoundException.class,
+                () -> service.createVisitForDoctor(PATIENT_ID, DOCTOR_A_ID, new PatientVisit()));
+        verify(activityService, never()).recordActivity(anyLong(), any(), any(), anyLong());
     }
     private static Patient patientOwnedBy(Long doctorId) {
         Doctor doctor = new Doctor();
