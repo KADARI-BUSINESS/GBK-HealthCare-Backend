@@ -44,6 +44,17 @@ public interface PatientVisitRepository
             @Param("doctorId") Long doctorId,
             @Param("today") LocalDate today);
 
+    @Query("""
+            SELECT v.id, p.id, p.fullName, v.visitDate, v.doctor, v.chiefComplaints
+            FROM PatientVisit v
+            JOIN v.patient p
+            WHERE p.doctorAccount.id = :doctorAccountId
+              AND v.visitDate = :visitDate
+            ORDER BY v.createdAt DESC, v.id DESC
+            """)
+    List<Object[]> findVisitSummariesForDoctorOnDate(
+            @Param("doctorAccountId") Long doctorAccountId,
+            @Param("visitDate") LocalDate visitDate);
     long countByPatient_DoctorAccount_IdAndVisitDate(Long doctorAccountId, LocalDate visitDate);
 
     @Query("""
@@ -83,3 +94,4 @@ public interface PatientVisitRepository
     Integer findMaxVisitNumberByPatientId(
             @Param("patientId") Long patientId);
 }
+

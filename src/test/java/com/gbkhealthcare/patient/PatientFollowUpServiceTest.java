@@ -109,6 +109,71 @@ class PatientFollowUpServiceTest {
                 .findByVisitIdAndDoctorAccountIdWithDetails(VISIT_ID, DOCTOR_A_ID);
     }
 
+    @Test
+    void doctorCanRescheduleOwnFollowUp() {
+        PatientFollowUp followUp = followUp();
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(followUp));
+        when(followUpRepository.save(followUp)).thenReturn(followUp);
+        LocalDate newDate = LocalDate.of(2026, 12, 1);
+        assertEquals(followUp, service.rescheduleFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID, newDate, "updated"));
+        assertEquals(newDate, followUp.getFollowUpDate());
+        assertEquals("updated", followUp.getFollowUpNotes());
+    }
+
+    @Test
+    void doctorCanCompleteOwnFollowUp() {
+        PatientFollowUp followUp = followUp();
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(followUp));
+        when(followUpRepository.save(followUp)).thenReturn(followUp);
+        assertEquals(followUp, service.completeFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID));
+        assertEquals("COMPLETED", followUp.getStatus());
+        assertNotNull(followUp.getCompletedAt());
+    }
+
+    @Test
+    void doctorCanCancelOwnFollowUp() {
+        PatientFollowUp followUp = followUp();
+        when(followUpRepository.findByIdAndDoctorAccountIdWithDetails(FOLLOW_UP_ID, DOCTOR_A_ID))
+                .thenReturn(Optional.of(followUp));
+        when(followUpRepository.save(followUp)).thenReturn(followUp);
+        assertEquals(followUp, service.cancelFollowUp(FOLLOW_UP_ID, DOCTOR_A_ID));
+        assertEquals("CANCELLED", followUp.getStatus());
+    }
+    @Test
+    void bulkFollowUpsMapsAllStatusesAndUsesDoctorScopedRepositoryQuery() {
+        LocalDate followUpDate = LocalDate.of(2026, 11, 20);
+        LocalDate visitDate = LocalDate.of(2026, 10, 1);
+        var scheduled = new Object[] {20L, 10L, 5L, "Ada Patient", followUpDate, visitDate,
+                "notes", "SCHEDULED", java.time.LocalDateTime.now(), null};
+        var completed = new Object[] {21L, 11L, 6L, "Grace Patient", followUpDate, visitDate,
+                null, "COMPLETED", java.time.LocalDateTime.now(), java.time.LocalDateTime.now()};
+        var cancelled = new Object[] {22L, 12L, 7L, "Lin Patient", followUpDate, visitDate,
+                null, "CANCELLED", java.time.LocalDateTime.now(), null};
+        when(followUpRepository.findAllWithDetailsForDoctor(DOCTOR_A_ID))
+                .thenReturn(java.util.List.of(scheduled, completed, cancelled));
+
+        var rows = service.getAllFollowUpsForDoctor(DOCTOR_A_ID);
+
+        assertEquals(3, rows.size());
+        assertEquals(java.util.List.of("SCHEDULED", "COMPLETED", "CANCELLED"),
+                rows.stream().map(PatientFollowUpService.BulkFollowUpRow::status).toList());
+        assertEquals("Ada Patient", rows.get(0).patientName());
+        assertEquals(5L, rows.get(0).patientId());
+        assertEquals(20L, rows.get(0).followUpId());
+        assertEquals(10L, rows.get(0).visitId());
+        assertEquals(visitDate, rows.get(0).previousVisitDate());
+        verify(followUpRepository).findAllWithDetailsForDoctor(DOCTOR_A_ID);
+    }
+
+    @Test
+    void bulkFollowUpsReturnsEmptyListWhenDoctorHasNoFollowUps() {
+        when(followUpRepository.findAllWithDetailsForDoctor(DOCTOR_A_ID))
+                .thenReturn(java.util.List.of());
+        assertTrue(service.getAllFollowUpsForDoctor(DOCTOR_A_ID).isEmpty());
+        verify(followUpRepository).findAllWithDetailsForDoctor(DOCTOR_A_ID);
+    }
     private static PatientFollowUp followUp() {
         PatientFollowUp followUp = new PatientFollowUp();
         followUp.setId(FOLLOW_UP_ID);
@@ -130,3 +195,5 @@ class PatientFollowUpServiceTest {
         return visit;
     }
 }
+
+

@@ -30,6 +30,9 @@ class PatientRepositoryRegistrationOrderTest {
     @Autowired
     private PatientVisitRepository visitRepository;
 
+    @Autowired
+    private com.gbkhealthcare.auth.DoctorRepository doctorRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -131,6 +134,34 @@ class PatientRepositoryRegistrationOrderTest {
         assertEquals(1L, ((Number) counts[5]).longValue());
     }
 
+    @Test
+    void todayVisitProjectionFiltersByDoctorAndExactDate() {
+        Doctor doctor = saveDoctor("today-visits@example.test");
+        Doctor otherDoctor = saveDoctor("today-visits-other@example.test");
+        LocalDate today = LocalDate.of(2026, 11, 13);
+        Patient ownedPatient = savePatient(doctor, "Today Patient", "Female", "today@example.test");
+        Patient otherPatient = savePatient(otherDoctor, "Other Patient", "Male", "other-today@example.test");
+        PatientVisit expected = saveDashboardVisit(ownedPatient, today, "Checkup");
+        saveDashboardVisit(ownedPatient, today.minusDays(1), "Yesterday");
+        saveDashboardVisit(otherPatient, today, "Other doctor's visit");
+
+        List<Object[]> rows = visitRepository.findVisitSummariesForDoctorOnDate(doctor.getId(), today);
+
+        assertEquals(1, rows.size());
+        assertEquals(expected.getId(), rows.get(0)[0]);
+        assertEquals(ownedPatient.getId(), rows.get(0)[1]);
+        assertEquals("Today Patient", rows.get(0)[2]);
+        assertEquals(today, rows.get(0)[3]);
+    }
+    @Test
+    void doctorDirectoryProjectionReturnsPublicFieldsAndAccountStatusOnly() {
+        Doctor doctor = saveDoctor("directory@example.test");
+        List<com.gbkhealthcare.auth.DoctorDirectoryEntry> entries = doctorRepository.findAllDirectoryEntries();
+        var entry = entries.stream().filter(item -> item.id().equals(doctor.getId())).findFirst().orElseThrow();
+        assertEquals("Test Doctor", entry.fullName());
+        assertEquals("directory@example.test", entry.email());
+        assertEquals(true, entry.enabled());
+    }
     private PatientVisit saveDashboardVisit(Patient patient, LocalDate date, String complaints) {
         PatientVisit visit = new PatientVisit();
         visit.setPatient(patient);
@@ -185,3 +216,6 @@ class PatientRepositoryRegistrationOrderTest {
         entityManager.flush();
     }
 }
+
+
+

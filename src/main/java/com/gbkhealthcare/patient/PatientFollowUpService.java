@@ -25,6 +25,20 @@ public class PatientFollowUpService {
         this.patientRepository = patientRepository;
     }
 
+    @Transactional(readOnly = true)
+    public List<BulkFollowUpRow> getAllFollowUpsForDoctor(Long doctorAccountId) {
+        return followUpRepository.findAllWithDetailsForDoctor(doctorAccountId).stream()
+                .map(row -> new BulkFollowUpRow(
+                        (Long) row[2], (String) row[3], (Long) row[0], (Long) row[1],
+                        (LocalDate) row[4], (LocalDate) row[5], (String) row[6],
+                        (String) row[7], (LocalDateTime) row[8], (LocalDateTime) row[9]))
+                .toList();
+    }
+
+    public record BulkFollowUpRow(Long patientId, String patientName, Long followUpId,
+            Long visitId, LocalDate followUpDate, LocalDate previousVisitDate,
+            String followUpNotes, String status, LocalDateTime createdAt,
+            LocalDateTime completedAt) {}
     @Transactional
     public PatientFollowUp scheduleFollowUp(
             Long visitId,
@@ -155,3 +169,8 @@ public class PatientFollowUpService {
                 .orElseThrow(FollowUpResourceNotFoundException::new);
     }
 }
+
+
+
+
+

@@ -75,4 +75,16 @@ public interface PatientFollowUpRepository
     Optional<PatientFollowUp> findByIdAndDoctorAccountIdWithDetails(
             @Param("followUpId") Long followUpId,
             @Param("doctorAccountId") Long doctorAccountId);
+    @Query("""
+            SELECT f.id, v.id, p.id, p.fullName, f.followUpDate, v.visitDate,
+                   f.followUpNotes, f.status, f.createdAt, f.completedAt
+            FROM PatientFollowUp f
+            JOIN f.visit v
+            JOIN v.patient p
+            WHERE p.doctorAccount.id = :doctorAccountId
+            ORDER BY f.followUpDate DESC, f.id DESC
+            """)
+    List<Object[]> findAllWithDetailsForDoctor(
+            @Param("doctorAccountId") Long doctorAccountId);
 }
+

@@ -92,6 +92,19 @@ public class PatientVisitService {
         }
 
         @Transactional(readOnly = true)
+        public List<TodayVisitRow> getVisitSummariesForDoctorOnDate(
+                        Long doctorAccountId, LocalDate visitDate) {
+                return patientVisitRepository.findVisitSummariesForDoctorOnDate(
+                                doctorAccountId, visitDate).stream()
+                        .map(row -> new TodayVisitRow(
+                                (Long) row[0], (Long) row[1], (String) row[2],
+                                (LocalDate) row[3], (String) row[4], (String) row[5]))
+                        .toList();
+        }
+
+        public record TodayVisitRow(Long id, Long patientId, String patientName,
+                        LocalDate visitDate, String doctor, String chiefComplaints) {}
+        @Transactional(readOnly = true)
         public List<PatientVisit> getVisitsByPatientIdForDoctor(
                         Long patientId,
                         Long doctorAccountId) {
@@ -153,3 +166,4 @@ public class PatientVisitService {
                                                 doctorAccountId);
         }
 }
+

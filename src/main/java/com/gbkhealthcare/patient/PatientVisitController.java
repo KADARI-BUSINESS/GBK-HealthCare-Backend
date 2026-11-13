@@ -13,6 +13,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 
 @RestController
@@ -51,6 +53,13 @@ public class PatientVisitController {
         }
     }
 
+    @GetMapping("/visits/today")
+    public List<PatientVisitService.TodayVisitRow> getTodaysVisits(
+            @AuthenticationPrincipal Jwt jwt) {
+        Doctor doctor = getAuthenticatedDoctor(jwt);
+        LocalDate todayInIndia = todayInIndia(Instant.now());
+        return patientVisitService.getVisitSummariesForDoctorOnDate(doctor.getId(), todayInIndia);
+    }
     @GetMapping("/patients/{patientId}/visits")
     public List<VisitResponse> getPatientVisits(
             @PathVariable Long patientId,
@@ -237,6 +246,9 @@ public class PatientVisitController {
         public String followUpNotes;
     }
 
+    static LocalDate todayInIndia(Instant instant) {
+        return instant.atZone(ZoneId.of("Asia/Kolkata")).toLocalDate();
+    }
     private Doctor getAuthenticatedDoctor(Jwt jwt) {
         return doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
@@ -246,3 +258,5 @@ public class PatientVisitController {
                         "Active doctor account not found."));
     }
 }
+
+

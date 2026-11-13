@@ -71,6 +71,34 @@ class PatientVisitServiceTest {
                         anyLong(), anyLong());
     }
 
+    @Test
+    void todayVisitQueryUsesRequestedIndiaDateAndDoctorScope() {
+        java.time.LocalDate today = java.time.LocalDate.of(2026, 11, 13);
+        Object[] row = {10L, 5L, "Patient One", today, "Doctor One", "Cough"};
+        when(visitRepository.findVisitSummariesForDoctorOnDate(DOCTOR_A_ID, today))
+                .thenReturn(java.util.Collections.singletonList(row));
+        var results = service.getVisitSummariesForDoctorOnDate(DOCTOR_A_ID, today);
+        assertEquals(1, results.size());
+        assertEquals("Patient One", results.get(0).patientName());
+        assertEquals("Cough", results.get(0).chiefComplaints());
+        verify(visitRepository).findVisitSummariesForDoctorOnDate(DOCTOR_A_ID, today);
+    }
+
+    @Test
+    void todayVisitQueryReturnsEmptyWhenNoVisitsExist() {
+        java.time.LocalDate today = java.time.LocalDate.of(2026, 11, 13);
+        when(visitRepository.findVisitSummariesForDoctorOnDate(DOCTOR_A_ID, today))
+                .thenReturn(List.of());
+        assertEquals(List.of(), service.getVisitSummariesForDoctorOnDate(DOCTOR_A_ID, today));
+    }
+
+    @Test
+    void indiaTodayUsesKolkataMidnightBoundary() {
+        assertEquals(java.time.LocalDate.of(2026, 11, 13),
+                PatientVisitController.todayInIndia(java.time.Instant.parse("2026-11-12T18:30:00Z")));
+        assertEquals(java.time.LocalDate.of(2026, 11, 12),
+                PatientVisitController.todayInIndia(java.time.Instant.parse("2026-11-12T18:29:59Z")));
+    }
     private static Patient patientOwnedBy(Long doctorId) {
         Doctor doctor = new Doctor();
         doctor.setId(doctorId);
@@ -80,3 +108,5 @@ class PatientVisitServiceTest {
         return patient;
     }
 }
+
+

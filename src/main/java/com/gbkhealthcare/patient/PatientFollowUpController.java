@@ -88,6 +88,11 @@ public class PatientFollowUpController {
                 .toList();
     }
 
+    @GetMapping("/follow-ups")
+    public List<PatientFollowUpService.BulkFollowUpRow> getAllFollowUps(
+            @AuthenticationPrincipal Jwt jwt) {
+        return followUpService.getAllFollowUpsForDoctor(getAuthenticatedDoctorId(jwt));
+    }
     // 5. Reschedule a follow-up
     @PutMapping("/follow-ups/{followUpId}")
     public FollowUpResponse rescheduleFollowUp(
@@ -170,3 +175,4 @@ public class PatientFollowUpController {
         }
     }
 }
+
