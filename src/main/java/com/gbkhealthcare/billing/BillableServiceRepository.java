@@ -1,0 +1,3 @@
+package com.gbkhealthcare.billing;
+import org.springframework.data.repository.Repository;import org.springframework.data.jpa.repository.Lock;import org.springframework.data.jpa.repository.Query;import org.springframework.data.repository.query.Param;import jakarta.persistence.LockModeType;import java.util.*;
+public interface BillableServiceRepository extends Repository<BillableService,Long>{BillableService save(BillableService service);Optional<BillableService> findById(Long id);Optional<BillableService> findByCodeIgnoreCase(String code);List<BillableService> findAllByOrderByCategoryAscNameAsc();@Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select s from BillableService s where s.id=:id") Optional<BillableService> findByIdForUpdate(@Param("id") Long id);}

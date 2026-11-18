@@ -52,4 +52,32 @@ public class JwtTokenService {
                 .encode(JwtEncoderParameters.from(header, claims))
                 .getTokenValue();
     }
+
+    public String generateAdminToken(AdminAccount admin) {
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(issuer)
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(expirationSeconds))
+                .subject(admin.getEmail())
+                .claim("adminId", admin.getId())
+                .claim("scope", "ADMIN")
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
+    public String generateStaffToken(StaffAccount staff) {
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(issuer)
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(expirationSeconds))
+                .subject(staff.getEmail())
+                .claim("staffId", staff.getId())
+                .claim("scope", "STAFF")
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
 }

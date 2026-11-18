@@ -76,6 +76,44 @@ class PatientServicePaginationTest {
     }
 
     @Test
+    void supportsFiveRowsPerPageWithoutChangingDoctorScope() {
+        Patient patient = patient(51L);
+        PageRequest pageRequest = PageRequest.of(0, 5);
+        when(patientRepository.findPageByDoctorAndFilters(
+                eq(7L), eq(null), eq(null), eq(pageRequest)))
+                .thenReturn(new PageImpl<>(List.of(patient), pageRequest, 1));
+
+        PatientPageResponse result = patientService.findPageByDoctorAccountId(
+                7L, 0, 5, null, null);
+
+        assertEquals(List.of(patient), result.content());
+        assertEquals(5, result.size());
+        assertEquals(1, result.totalElements());
+        verify(patientRepository).findPageByDoctorAndFilters(
+                eq(7L), eq(null), eq(null), eq(pageRequest));
+    }
+
+    @Test
+    void keepsAllCurrentPageRecordsAndDatabaseTotalIncludingNewRegistration() {
+        Patient existingPatient = patient(40L);
+        Patient anotherExistingPatient = patient(41L);
+        Patient newlyRegisteredPatient = patient(164L);
+        when(patientRepository.findPageByDoctorAndFilters(
+                eq(7L), eq(null), eq(null), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(existingPatient, anotherExistingPatient, newlyRegisteredPatient),
+                        PageRequest.of(0, 10), 163));
+
+        PatientPageResponse result = patientService.findPageByDoctorAccountId(
+                7L, 0, 10, null, null);
+
+        assertEquals(List.of(existingPatient, anotherExistingPatient, newlyRegisteredPatient), result.content());
+        assertEquals(163, result.totalElements());
+        assertEquals(17, result.totalPages());
+        verify(patientRepository).findPageByDoctorAndFilters(
+                eq(7L), eq(null), eq(null), any(Pageable.class));
+    }
+
+    @Test
     void convertsBlankSearchAndGenderToNoFilters() {
         when(patientRepository.findPageByDoctorAndFilters(
                 eq(7L), eq(null), eq(null), any(Pageable.class)))
@@ -88,5 +126,11 @@ class PatientServicePaginationTest {
         assertEquals(0, result.number());
         assertTrue(result.first());
         assertTrue(result.last());
+    }
+
+    private static Patient patient(long id) {
+        Patient patient = new Patient();
+        patient.setId(id);
+        return patient;
     }
 }

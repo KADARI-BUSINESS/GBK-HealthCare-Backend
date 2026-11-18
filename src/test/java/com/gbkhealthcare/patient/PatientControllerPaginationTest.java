@@ -59,6 +59,19 @@ class PatientControllerPaginationTest {
     }
 
     @Test
+    void acceptsFiveRowsForThePatientRecordsDefaultPageSize() {
+        PatientPageResponse expected = new PatientPageResponse(
+                List.of(), 0, 0, 5, 0, true, true);
+        when(patientService.findPageByDoctorAccountId(7L, 0, 5, null, null))
+                .thenReturn(expected);
+
+        PatientPageResponse result = controller.findPage(jwt, 0, 5, null, null);
+
+        assertEquals(expected, result);
+        verify(patientService).findPageByDoctorAccountId(7L, 0, 5, null, null);
+    }
+
+    @Test
     void rejectsInvalidPageAndUnsupportedPageSize() {
         ResponseStatusException negativePage = assertThrows(ResponseStatusException.class,
                 () -> controller.findPage(jwt, -1, 10, null, null));

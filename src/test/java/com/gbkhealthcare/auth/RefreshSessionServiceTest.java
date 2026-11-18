@@ -68,6 +68,33 @@ class RefreshSessionServiceTest {
         verify(sessions).saveAll(List.of(revoked));
     }
 
+    @Test
+    void expiredRefreshTokenIsRejectedAndRevoked() throws Exception {
+        String rawToken = "expired-refresh-token";
+        DoctorRefreshSession expired = session(rawToken, Instant.now().minusSeconds(1), null);
+        when(sessions.findByTokenHashForUpdate(hash(rawToken))).thenReturn(Optional.of(expired));
+
+        assertThrows(ResponseStatusException.class, () -> service.rotate(rawToken));
+        assertNotNull(expired.getRevokedAt());
+        verify(doctors, never()).findById(any());
+    }
+
+    @Test
+    void logoutRevokesTheRefreshTokenFamily() throws Exception {
+        String rawToken = "logout-refresh-token";
+        DoctorRefreshSession current = session(rawToken, Instant.now().plusSeconds(600), null);
+        DoctorRefreshSession sibling = new DoctorRefreshSession(
+                "family-1", 7L, "other-hash", Instant.now(), Instant.now().plusSeconds(600));
+        when(sessions.findByTokenHashForUpdate(hash(rawToken))).thenReturn(Optional.of(current));
+        when(sessions.findAllByFamilyId("family-1")).thenReturn(List.of(current, sibling));
+
+        service.revoke(rawToken);
+
+        assertNotNull(current.getRevokedAt());
+        assertNotNull(sibling.getRevokedAt());
+        verify(sessions).saveAll(List.of(current, sibling));
+    }
+
     private static DoctorRefreshSession session(String token, Instant expires, Instant revoked) throws Exception {
         DoctorRefreshSession session = new DoctorRefreshSession("family-1", 7L, hash(token), Instant.now(), expires);
         if (revoked != null) session.revoke(revoked);

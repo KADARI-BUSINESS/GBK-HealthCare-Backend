@@ -83,6 +83,36 @@ class DoctorAuthServiceTest {
                 new DoctorLoginRequest("doctor@example.com", "test-password"), "test-correlation"));
     }
 
+    @Test
+    void rejectedDoctorIsRejectedWithoutGeneratingTokens() {
+        Doctor doctor = enabledDoctor();
+        doctor.setApprovalStatus(Doctor.ApprovalStatus.REJECTED);
+        when(doctorRepository.findByEmailIgnoreCase("doctor@example.com"))
+                .thenReturn(Optional.of(doctor));
+
+        assertThrows(BadCredentialsException.class, () -> service.login(
+                new DoctorLoginRequest("doctor@example.com", "test-password"), "test-correlation"));
+        verify(passwordEncoder, org.mockito.Mockito.never()).matches(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(jwtTokenService, org.mockito.Mockito.never()).generateToken(doctor);
+        verify(refreshSessionService, org.mockito.Mockito.never()).create(7L);
+    }
+
+    @Test
+    void pendingDoctorCannotLogInBeforeApproval() {
+        Doctor doctor = enabledDoctor();
+        doctor.setApprovalStatus(Doctor.ApprovalStatus.PENDING);
+        when(doctorRepository.findByEmailIgnoreCase("doctor@example.com"))
+                .thenReturn(Optional.of(doctor));
+
+        assertThrows(BadCredentialsException.class, () -> service.login(
+                new DoctorLoginRequest("doctor@example.com", "test-password"), "test-correlation"));
+        verify(passwordEncoder, org.mockito.Mockito.never()).matches(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(jwtTokenService, org.mockito.Mockito.never()).generateToken(doctor);
+        verify(refreshSessionService, org.mockito.Mockito.never()).create(7L);
+    }
+
     private static Doctor enabledDoctor() {
         Doctor doctor = new Doctor();
         doctor.setId(7L);

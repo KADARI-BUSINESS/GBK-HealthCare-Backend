@@ -88,4 +88,16 @@ public interface PatientRepository
         Optional<Patient> findByIdAndDoctorAccount_Id(
                         Long patientId,
                         Long doctorAccountId);
+
+        @Query("""
+                        SELECT p FROM Patient p
+                        WHERE (:patientId IS NOT NULL AND p.id = :patientId)
+                           OR LOWER(p.fullName) LIKE LOWER(CONCAT('%', :text, '%'))
+                           OR p.phone LIKE CONCAT('%', :text, '%')
+                        ORDER BY p.fullName ASC, p.id ASC
+                        """)
+        List<Patient> searchForReception(
+                        @Param("patientId") Long patientId,
+                        @Param("text") String text,
+                        Pageable pageable);
 }
