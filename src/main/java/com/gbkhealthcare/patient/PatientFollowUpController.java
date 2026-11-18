@@ -124,17 +124,19 @@ public class PatientFollowUpController {
     @PutMapping("/follow-ups/{followUpId}/cancel")
     public FollowUpResponse cancelFollowUp(
             @PathVariable Long followUpId,
-            @AuthenticationPrincipal Jwt jwt) {
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody FollowUpReasonRequest request) {
 
         return FollowUpResponse.from(
                 followUpService.cancelFollowUp(
-                        followUpId, getAuthenticatedDoctorId(jwt)));
+                        followUpId, getAuthenticatedDoctorId(jwt), request.reason()));
     }
 
     private Long getAuthenticatedDoctorId(Jwt jwt) {
         return doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(doctor -> doctor.getApprovalStatus() == Doctor.ApprovalStatus.APPROVED)
                 .map(Doctor::getId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,

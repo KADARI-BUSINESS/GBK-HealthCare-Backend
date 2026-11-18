@@ -1,0 +1,3 @@
+package com.gbkhealthcare.billing;
+import java.math.BigDecimal;import java.time.LocalDateTime;import java.util.List;
+public record BillableServiceResponse(Long id,String code,String name,String description,String category,boolean active,Integer currentPriceVersion,BigDecimal currentPrice,BigDecimal taxRatePercent,LocalDateTime priceEffectiveAt){static BillableServiceResponse from(BillableService s,BillableServicePrice p){return new BillableServiceResponse(s.getId(),s.getCode(),s.getName(),s.getDescription(),s.getCategory(),s.isActive(),p==null?null:p.getVersion(),p==null?null:p.getAmount(),p==null?null:p.getTaxRatePercent(),p==null?null:p.getEffectiveAt());}}

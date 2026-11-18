@@ -253,6 +253,8 @@ public class PatientVisitController {
         return doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));

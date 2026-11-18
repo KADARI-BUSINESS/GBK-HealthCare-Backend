@@ -2,8 +2,11 @@
 package com.gbkhealthcare.patient;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +14,11 @@ import java.util.Optional;
 
 public interface PatientVisitRepository
         extends JpaRepository<PatientVisit, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from PatientVisit v where v.id = :visitId")
+    Optional<PatientVisit> findByIdForBillingUpdate(@Param("visitId") Long visitId);
+    List<PatientVisit> findAllByConsultationStatusAndCheckoutStatusOrderByCreatedAtAsc(String consultationStatus, String checkoutStatus);
 
     @Query(value = """
             SELECT
@@ -86,6 +94,12 @@ public interface PatientVisitRepository
             Long visitId,
             Long doctorAccountId);
 
+    @Query("SELECT v FROM PatientVisit v LEFT JOIN v.patient p LEFT JOIN p.doctorAccount owner LEFT JOIN v.assignedDoctor assigned WHERE v.id = :visitId AND (owner.id = :doctorId OR assigned.id = :doctorId)")
+    Optional<PatientVisit> findForDoctorFollowUp(@Param("visitId") Long visitId, @Param("doctorId") Long doctorId);
+
+    @Query("SELECT COUNT(v) > 0 FROM PatientVisit v JOIN v.patient p LEFT JOIN p.doctorAccount owner LEFT JOIN v.assignedDoctor assigned WHERE p.id = :patientId AND (owner.id = :doctorId OR assigned.id = :doctorId)")
+    boolean existsPatientVisitForDoctor(@Param("patientId") Long patientId, @Param("doctorId") Long doctorId);
+
     @Query("""
             SELECT COALESCE(MAX(v.visitNumber), 0)
             FROM PatientVisit v
@@ -93,5 +107,23 @@ public interface PatientVisitRepository
             """)
     Integer findMaxVisitNumberByPatientId(
             @Param("patientId") Long patientId);
+
+    Optional<PatientVisit> findByCheckInRequestKey(String checkInRequestKey);
+
+    Optional<PatientVisit> findBySourceFollowUp_Id(Long followUpId);
+
+    @Query("""
+            select v from PatientVisit v
+            where v.patient.id = :patientId and v.id <> :encounterVisitId and v.createdAt < :before
+              and (v.chiefComplaints is not null or v.presentIllness is not null or v.generalExamination is not null
+                or v.heartExamination is not null or v.lungsExamination is not null or v.abdomenExamination is not null
+                or v.rectalExamination is not null or v.temperature is not null or v.pulseRate is not null
+                or v.spo2 is not null or v.bpSystolic is not null or v.bpDiastolic is not null
+                or v.diagnosis is not null or v.treatmentPlan is not null)
+            order by v.visitDate desc, v.id desc
+            """)
+    List<PatientVisit> findRelevantClinicalHistory(@Param("patientId") Long patientId,
+            @Param("encounterVisitId") Long encounterVisitId, @Param("before") java.time.LocalDateTime before,
+            Pageable pageable);
 }
 
