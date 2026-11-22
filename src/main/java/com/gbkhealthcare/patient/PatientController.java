@@ -24,7 +24,7 @@ import java.util.Set;
 @RequestMapping("/api/patients")
 public class PatientController {
 
-    private static final Set<Integer> ALLOWED_PAGE_SIZES = Set.of(10, 20, 50);
+    private static final Set<Integer> ALLOWED_PAGE_SIZES = Set.of(5, 10, 20, 50);
 
     private final PatientService patientService;
     private final DoctorRepository doctorRepository;
@@ -45,6 +45,8 @@ public class PatientController {
         Doctor doctor = doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));
@@ -66,6 +68,8 @@ public class PatientController {
         Doctor doctor = doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));
@@ -87,7 +91,7 @@ public class PatientController {
         }
         if (!ALLOWED_PAGE_SIZES.contains(size)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Page size must be 10, 20, or 50.");
+                    "Page size must be 5, 10, 20, or 50.");
         }
         if (search != null && search.length() > 160) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -102,6 +106,8 @@ public class PatientController {
         Doctor doctor = doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));
@@ -120,6 +126,8 @@ public class PatientController {
         Doctor doctor = doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));
@@ -153,6 +161,8 @@ public class PatientController {
         Doctor doctor = doctorRepository
                 .findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
                         "Active doctor account not found."));

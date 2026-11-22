@@ -1,12 +1,21 @@
 
 package com.gbkhealthcare.patient;
 
+import com.gbkhealthcare.auth.Doctor;
+import org.hibernate.annotations.JdbcTypeCode;
 import jakarta.persistence.*;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "patient_visits")
+@Table(name = "patient_visits", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_patient_visits_follow_up", columnNames = "source_follow_up_id"),
+        @UniqueConstraint(name = "uk_patient_visits_check_in_key", columnNames = "check_in_request_key")
+}, indexes = {
+        @Index(name = "idx_patient_visits_assigned_doctor_date", columnList = "assigned_doctor_id, visit_date"),
+        @Index(name = "idx_patient_visits_checkout_complete", columnList = "checkout_status, checkout_completed_at")
+})
 public class PatientVisit {
 
     @Id
@@ -71,6 +80,48 @@ public class PatientVisit {
 
     @Column(name = "visit_number")
     private Integer visitNumber;
+
+    // Reception/OPD additions. Legacy Patient.doctorAccount remains untouched.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "encounter_type", length = 20)
+    private EncounterType encounterType;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_doctor_id")
+    private Doctor assignedDoctor;
+
+    @Column(name = "checked_in_by_staff_id")
+    private Long checkedInByStaffId;
+
+    @JdbcTypeCode(Types.BIT)
+    @Column(name = "emergency_priority", nullable = false)
+    private boolean emergencyPriority;
+
+    @Column(name = "emergency_note", columnDefinition = "TEXT")
+    private String emergencyNote;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_follow_up_id")
+    private PatientFollowUp sourceFollowUp;
+
+    @Column(name = "check_in_request_key", length = 36)
+    private String checkInRequestKey;
+
+    // OPD lifecycle fields are nullable for unchanged legacy PatientVisit records.
+    @Column(name = "encounter_status", length = 32)
+    private String encounterStatus;
+    @Column(name = "consultation_status", length = 16)
+    private String consultationStatus;
+    @Column(columnDefinition = "TEXT")
+    private String assessment;
+    @Column(name = "doctor_notes", columnDefinition = "TEXT")
+    private String doctorNotes;
+    @Column(name = "consultation_signed_at")
+    private LocalDateTime consultationSignedAt;
+    @Column(name = "checkout_status", length = 24)
+    private String checkoutStatus;
+    @Column(name = "checkout_completed_at") private LocalDateTime checkoutCompletedAt;
+    @Column(name = "checkout_completed_by_staff_id") private Long checkoutCompletedByStaffId;
 
     @PrePersist
     protected void onCreate() {
@@ -274,4 +325,35 @@ public class PatientVisit {
     public void setVisitNumber(Integer visitNumber) {
         this.visitNumber = visitNumber;
     }
+
+    public EncounterType getEncounterType() { return encounterType; }
+    public void setEncounterType(EncounterType encounterType) { this.encounterType = encounterType; }
+    public Doctor getAssignedDoctor() { return assignedDoctor; }
+    public void setAssignedDoctor(Doctor assignedDoctor) { this.assignedDoctor = assignedDoctor; }
+    public Long getCheckedInByStaffId() { return checkedInByStaffId; }
+    public void setCheckedInByStaffId(Long checkedInByStaffId) { this.checkedInByStaffId = checkedInByStaffId; }
+    public boolean isEmergencyPriority() { return emergencyPriority; }
+    public void setEmergencyPriority(boolean emergencyPriority) { this.emergencyPriority = emergencyPriority; }
+    public String getEmergencyNote() { return emergencyNote; }
+    public void setEmergencyNote(String emergencyNote) { this.emergencyNote = emergencyNote; }
+    public PatientFollowUp getSourceFollowUp() { return sourceFollowUp; }
+    public void setSourceFollowUp(PatientFollowUp sourceFollowUp) { this.sourceFollowUp = sourceFollowUp; }
+    public String getCheckInRequestKey() { return checkInRequestKey; }
+    public void setCheckInRequestKey(String checkInRequestKey) { this.checkInRequestKey = checkInRequestKey; }
+    public String getEncounterStatus() { return encounterStatus; }
+    public void setEncounterStatus(String encounterStatus) { this.encounterStatus = encounterStatus; }
+    public String getConsultationStatus() { return consultationStatus; }
+    public void setConsultationStatus(String consultationStatus) { this.consultationStatus = consultationStatus; }
+    public String getAssessment() { return assessment; }
+    public void setAssessment(String assessment) { this.assessment = assessment; }
+    public String getDoctorNotes() { return doctorNotes; }
+    public void setDoctorNotes(String doctorNotes) { this.doctorNotes = doctorNotes; }
+    public LocalDateTime getConsultationSignedAt() { return consultationSignedAt; }
+    public void setConsultationSignedAt(LocalDateTime consultationSignedAt) { this.consultationSignedAt = consultationSignedAt; }
+    public String getCheckoutStatus() { return checkoutStatus; }
+    public void setCheckoutStatus(String checkoutStatus) { this.checkoutStatus = checkoutStatus; }
+    public LocalDateTime getCheckoutCompletedAt() { return checkoutCompletedAt; }
+    public void setCheckoutCompletedAt(LocalDateTime checkoutCompletedAt) { this.checkoutCompletedAt = checkoutCompletedAt; }
+    public Long getCheckoutCompletedByStaffId() { return checkoutCompletedByStaffId; }
+    public void setCheckoutCompletedByStaffId(Long checkoutCompletedByStaffId) { this.checkoutCompletedByStaffId = checkoutCompletedByStaffId; }
 }

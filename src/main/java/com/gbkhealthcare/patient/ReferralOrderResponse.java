@@ -1,0 +1,3 @@
+package com.gbkhealthcare.patient;
+import java.time.LocalDateTime;
+public record ReferralOrderResponse(Long id,Long patientVisitId,Long doctorId,String specialty,String providerOrFacility,String clinicalReason,ReferralOrder.Priority priority,String instructions,ReferralOrder.Status status,LocalDateTime createdAt,LocalDateTime updatedAt){static ReferralOrderResponse from(ReferralOrder o){return new ReferralOrderResponse(o.getId(),o.getPatientVisit().getId(),o.getDoctor().getId(),o.getSpecialty(),o.getProviderOrFacility(),o.getClinicalReason(),o.getPriority(),o.getInstructions(),o.getStatus(),o.getCreatedAt(),o.getUpdatedAt());}}

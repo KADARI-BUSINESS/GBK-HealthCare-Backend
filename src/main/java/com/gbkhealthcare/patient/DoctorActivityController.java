@@ -40,6 +40,8 @@ public class DoctorActivityController {
         }
         Doctor doctor = doctorRepository.findByEmailIgnoreCase(jwt.getSubject())
                 .filter(Doctor::isEnabled)
+                .filter(d -> d.getApprovalStatus()
+                        == Doctor.ApprovalStatus.APPROVED)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "Active doctor account not found."));
         return activityService.getRecentActivities(doctor.getId(), limit);
